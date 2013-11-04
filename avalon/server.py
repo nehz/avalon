@@ -118,7 +118,7 @@ def endpoint(route):
 
 #==============================================================================
 # Server
-#======================================================================lo========
+#==============================================================================
 
 @endpoint('/_avalon')
 def _server(message):
@@ -130,7 +130,11 @@ def _index():
     # Gather and convert all templates into a single handlebars template
     DOCTYPE = '<!DOCTYPE html>'
     head = E.HEAD()
-    body = E.BODY()
+    body = E.BODY(E.DIV(id='avalon-root'))
+    root_template = E.SCRIPT(
+        id='avalon-root-template',
+        type='text/x-handlebars-template'
+    )
     templates = []
     template_names = []
 
@@ -153,16 +157,8 @@ def _index():
                 if e.tag == 'head':
                     head.extend(e.getchildren())
                 if e.tag == 'body':
-                    text = e.text
-                    if text:
-                        body.append(E.DIV(text))
-
-                    for c in e.getchildren():
-                        tail, c.tail = c.tail, None
-                        body.append(c)
-                        if tail:
-                            body.append(E.DIV(tail))
-
+                    root_template.text = (root_template.text or '') + e.text
+                    root_template.extend(e.getchildren())
                 if e.tag in ['template', 'view']:
                     name = e.get('id') or e.get('name')
 
@@ -172,7 +168,7 @@ def _index():
                         'Duplicate template name'
 
                     template = E.SCRIPT(
-                        id=name,
+                        id='template-{0}'.format(name),
                         type='text/x-handlebars-template'
                     )
                     template.text = e.text
@@ -181,8 +177,15 @@ def _index():
                     templates.append(template)
                     template_names.append(name)
 
-    # Append templates
-    body.extend(templates)
+            for name in template_names:
+                script = '''
+                    Template.{0} = Handlebars.compile($("#{1}").html());
+                    Handlebars.registerPartial("{0}", Template.{0});
+                '''
+                templates.append(E.SCRIPT(
+                    script.format(name, 'template-{0}'.format(name)),
+                    type='text/javascript'
+                ))
 
     # Append bundle
     for b in _bundle_files:
@@ -207,6 +210,10 @@ def _index():
                     type='text/javascript'
                 )
             ])
+
+    # Append templates
+    body.append(root_template)
+    body.extend(templates)
 
     # Append compiled Javascript functions
     for j in client._js:
