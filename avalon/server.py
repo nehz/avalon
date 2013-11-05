@@ -133,7 +133,7 @@ def _index():
     head = E.HEAD(style)
     body = E.BODY(E.DIV(id='avalon-root'))
     root_template = E.SCRIPT(
-        id='avalon-root-template',
+        id='template-avalon-root',
         type='text/x-handlebars-template'
     )
     templates = []
