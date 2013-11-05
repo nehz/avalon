@@ -129,7 +129,8 @@ def _server(message):
 def _index():
     # Gather and convert all templates into a single handlebars template
     DOCTYPE = '<!DOCTYPE html>'
-    head = E.HEAD()
+    style = E.STYLE()
+    head = E.HEAD(style)
     body = E.BODY(E.DIV(id='avalon-root'))
     root_template = E.SCRIPT(
         id='avalon-root-template',
@@ -144,6 +145,10 @@ def _index():
 
             with open(os.path.join(dirpath, f), 'r', encoding='utf-8') as f:
                 t = f.read()
+
+            if ext in ['.css']:
+                style.text = (style.text or '') + t
+                continue
 
             handler = _template_handler.get(ext, None)
             if not handler:
