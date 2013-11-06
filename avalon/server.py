@@ -17,6 +17,7 @@ import tornado.web
 import tornado.websocket
 
 from bottle import get, default_app, static_file
+from codecs import open
 from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
@@ -140,10 +141,11 @@ def _index():
     template_names = []
 
     for dirpath, dirnames, filenames in os.walk(_view_path):
-        for f in filenames:
-            ext = os.path.splitext(f)[-1]
+        for filename in filenames:
+            ext = os.path.splitext(filename)[-1]
+            filename = os.path.join(dirpath, filename)
 
-            with open(os.path.join(dirpath, f), 'r', encoding='utf-8') as f:
+            with open(filename, 'r', encoding='utf-8') as f:
                 t = f.read()
 
             if ext in ['.css']:
@@ -157,7 +159,16 @@ def _index():
             if callable(handler):
                 t = handler(t)
 
-            dom = html.fromstring(t)
+            if not t:
+                _logger.warning('View is empty (%s)', filename)
+                continue
+
+            try:
+                dom = html.fromstring(t)
+            except Exception as e:
+                _logger.error('Parse error (%s) %s', filename, e)
+                continue
+
             for e in dom.getchildren():
                 if e.tag == 'head':
                     head.extend(e.getchildren())
@@ -167,10 +178,14 @@ def _index():
                 if e.tag in ['template', 'view']:
                     name = e.get('id') or e.get('name')
 
-                    assert name, \
-                        'A template is not named'
-                    assert name not in template_names, \
-                        'Duplicate template name'
+                    if not name:
+                        _logger.error('A template is not named (%s)', filename)
+                        continue
+
+                    if name in template_names:
+                        _logger.error('Duplicate template name "%s" (%s)',
+                                      name, filename)
+                        continue
 
                     template = E.SCRIPT(
                         id='template-{0}'.format(name),
@@ -184,7 +199,7 @@ def _index():
 
             for name in template_names:
                 script = '''
-                    Template.{0} = Handlebars.compile($("#{1}").html());
+                    Template["{0}"] = Handlebars.compile($("#{1}").html());
                     Handlebars.registerPartial("{0}", Template.{0});
                 '''
                 templates.append(E.SCRIPT(
