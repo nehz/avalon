@@ -193,7 +193,7 @@ def _index():
             templates.append(
                 E.SCRIPT(
                     '\n'.join([
-                        'Avalon.context["{0}"] = new Avalon.Template("{1}");'
+                        'Avalon.template["{0}"] = new Avalon.Template("{1}");'
                             .format(name, 'template-{0}'.format(name))
                         for name in template_names
                     ]),

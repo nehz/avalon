@@ -12,6 +12,7 @@
     var avalon = global.Avalon = {
         context: {}
     };
+    var template = avalon.template = {};
 
 
     /* Model */
@@ -20,6 +21,7 @@
         var value;
         var listeners = [];
 
+        //TODO: cleanup listeners
         this.listen = function(f) {
             listeners.push(f);
         };
@@ -29,12 +31,6 @@
                 f(v);
             });
         };
-        this.bootstrap = function(root) {
-            this.attached = root;
-        };
-        this.render = function() {
-            console.log('render TODO');
-        };
     };
 
     var Template = avalon.Template = function(name) {
@@ -43,74 +39,50 @@
             console.error('Template', name, 'not found');
         }
 
-        this.context = {};
-        this.render = function() {
-            if (this.attached) {
-                this.attached.html(template.html());
-            }
+        this.render = function(root, context) {
+            context = {
+                _parent: context
+            };
+
+            root.html(template.html());
+            avalon.bootstrap(root, context);
+            return context;
         }
     };
-    Template.prototype = new Observable();
 
 
     /* Functions */
 
-    avalon.domPatch = function(root, elements) {
-        var $root = $(root);
-        var $elements = $(elements);
-        var removed = 0;
-        var removeList = [];
-
-        for (var i = 0; i < $elements.length; i++) {
-            var children = $root.contents();
-            var c = children[i + removed];
-            var e = $elements[i];
-
-            if (!c) {
-                // New node
-                $root.append(e);
-            }
-            else if(c.nodeName != e.nodeName || c._index != e._index) {
-                // Append before
-                if (children.length - removed < $elements.length) {
-                    $(c).insertBefore(e);
-                }
-                else {
-                    removeList.push(c);
-                    removed++;
-                }
-                i--;
-            }
-            else if(e.nodeType == 3) {
-                // Text node
-                c.data = e.data;
-            }
-            else {
-                // Merge node
-                $(c).attr('class', $(e).attr('class'));
-                avalon.domPatch(c, $(e).contents());
-            }
-        }
-
-        // Remove elements
-        var last = $root.contents()[$elements.length + removed - 1];
-        $(last).nextAll().remove();
-        $.each(removeList, function(i ,v) {
-            v.remove();
-        });
-
-        if(!$elements.length) {
-            $root.empty();
-        }
+    var defer = function(f) {
+        setTimeout(f, 0);
     };
 
-    avalon.bootstrap = function (root, context) {
+    var get = function(o, n) {
+        n = n.split('.');
+        for (var i = 0; i < n.length; i++) {
+            o = o[n[i]];
+        }
+        return o;
+    };
+
+    var set = function(o, n, v) {
+        n = n.split('.');
+        for (var i = 0; i < n.length; i++) {
+            if (i < n.length - 1) {
+                o = o[n[i]];
+            }
+            else{
+                o[n[i]] = v;
+            }
+        }
+        return v;
+    };
+
+    avalon.bootstrap = function(root, context) {
         root = $(root);
         context = context || avalon.context;
 
         $.each(root.children(), function(i, c) {
-            avalon.bootstrap(c);
-
             // Get binding
             var bind;
             for (var i = 0; i < c.attributes.length; i++) {
@@ -125,18 +97,18 @@
                 }
             }
             if (!bind) {
+                avalon.bootstrap(c, context);
                 return;
             }
 
-            if (context[bind] instanceof Template) {
-                context[bind].bootstrap(root);
+            if (template[bind] instanceof Template) {
+                context[bind] = template[bind].render(root, context);
             }
-            else {
-                var o = context[bind];
+            else if(!context[bind] || context[bind] instanceof Observable) {
+                var o = get(context, bind);
                 if (!o) {
-                    o = context[bind] = new Observable();
+                    o = set(context, bind, new Observable())
                 }
-                o.bootstrap(root);
 
                 // Input bind
                 if ($(c).is('input')) {
@@ -147,9 +119,9 @@
                         o.bind($(c).val());
                     });
                     $(c).on('cut', function() {
-                        global.setTimeout(function() {
+                        defer(function() {
                             o.bind($(c).val());
-                        }, 0);
+                        });
                     });
                     o.listen(function(v) {
                         $(c).val(v);
@@ -160,14 +132,14 @@
                         $(c).text(v);
                     });
                 }
-
-                context[bind].render();
+            }
+            else {
+                defer(function() {
+                    console.error('Unable to bind', ':' + bind,
+                        get(context, bind));
+                })
             }
         });
-    };
-
-    avalon.render = function() {
-
     };
 
 
