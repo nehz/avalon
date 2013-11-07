@@ -190,6 +190,17 @@ def _index():
                     _logger.error('View is invalid (%s)', filename)
                     continue
 
+            templates.append(
+                E.SCRIPT(
+                    '\n'.join([
+                        'Avalon.context["{0}"] = new Avalon.Template("{1}");'
+                            .format(name, 'template-{0}'.format(name))
+                        for name in template_names
+                    ]),
+                    type='text/javascript'
+                )
+            )
+
     # Append bundle
     for b in _bundle_files:
         assert len(b) in [2, 3], 'Invalid bundle file config'
@@ -202,7 +213,9 @@ def _index():
             link = html.tostring(E.SCRIPT(
                 src='bundle/{0}'.format(b[2]),
                 type='text/javascript'
-            ), encoding='utf-8').decode('utf-8').replace('</script>', '<\/script>')
+            ), encoding='utf-8')
+
+            link = link.decode('utf-8').replace('</script>', '<\/script>')
             body.extend([
                 E.SCRIPT(
                     src=b[1],
