@@ -50,11 +50,6 @@ _bundle_files = [
         'jquery-1.10.2.min.js'
     ),
     (
-        'Handlebars',
-        '//cdnjs.cloudflare.com/ajax/libs/handlebars.js/1.0.0/handlebars.min.js',
-        'handlebars-1.0.0.min.js'
-    ),
-    (
         'JSON',
         '//cdnjs.cloudflare.com/ajax/libs/json3/3.2.5/json3.min.js',
         'json3-3.2.5.min.js'
@@ -66,9 +61,7 @@ _bundle_files = [
 ]
 _router.DEFAULT_SETTINGS['sockjs_url'] = '/bundle/sockjs-0.3.4.min.js'
 _template_handler = {
-    '.html': True,
-    '.handlebars': True,
-    '.hbs': True
+    '.html': True
 }
 
 
@@ -128,15 +121,12 @@ def _server(message):
 
 @get('/')
 def _index():
-    # Gather and convert all templates into a single handlebars template
+    # Gather, convert and process assets
     DOCTYPE = '<!DOCTYPE html>'
     style = E.STYLE()
     head = E.HEAD(style)
-    body = E.BODY(E.DIV(id='avalon-root'))
-    root_template = E.SCRIPT(
-        id='template-avalon-root',
-        type='text/x-handlebars-template'
-    )
+    root = E.DIV(id='avalon-root')
+    body = E.BODY(root)
     templates = []
     template_names = []
 
@@ -172,40 +162,33 @@ def _index():
             for e in dom.getchildren():
                 if e.tag == 'head':
                     head.extend(e.getchildren())
-                if e.tag == 'body':
-                    root_template.text = (root_template.text or '') + e.text
-                    root_template.extend(e.getchildren())
-                if e.tag in ['template', 'view']:
-                    name = e.get('id') or e.get('name')
+                elif e.tag == 'body':
+                    root.text = (root.text or '') + e.text
+                    root.extend(e.getchildren())
+                elif e.tag in ['template', 'view']:
+                    names = [n[1:] for n in e.keys() if n and n[0] == ':']
 
-                    if not name:
-                        _logger.error('A template is not named (%s)', filename)
+                    if not names:
                         continue
 
-                    if name in template_names:
-                        _logger.error('Duplicate template name "%s" (%s)',
-                                      name, filename)
-                        continue
+                    for name in names:
+                        if name in template_names:
+                            _logger.error('Duplicate template "%s" found (%s)',
+                                          name, filename)
+                            continue
 
-                    template = E.SCRIPT(
-                        id='template-{0}'.format(name),
-                        type='text/x-handlebars-template'
-                    )
-                    template.text = e.text
-                    template.extend(e.getchildren())
+                        template = E.SCRIPT(
+                            id='template-{0}'.format(name),
+                            type='text/x-avalon-template'
+                        )
+                        template.text = e.text
+                        template.extend(e.getchildren())
+                        templates.append(template)
 
-                    templates.append(template)
-                    template_names.append(name)
-
-            for name in template_names:
-                script = '''
-                    Template["{0}"] = Handlebars.compile($("#{1}").html());
-                    Handlebars.registerPartial("{0}", Template.{0});
-                '''
-                templates.append(E.SCRIPT(
-                    script.format(name, 'template-{0}'.format(name)),
-                    type='text/javascript'
-                ))
+                    template_names.extend(names)
+                else:
+                    _logger.error('View is invalid (%s)', filename)
+                    continue
 
     # Append bundle
     for b in _bundle_files:
@@ -232,7 +215,6 @@ def _index():
             ])
 
     # Append templates
-    body.append(root_template)
     body.extend(templates)
 
     # Append compiled Javascript functions
