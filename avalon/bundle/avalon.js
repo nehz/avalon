@@ -46,7 +46,7 @@
                 _template: template
             };
 
-            root.html($template.html());
+            $(root).html($template.html());
             avalon.bootstrap(root, context);
             return context;
         };
@@ -73,6 +73,9 @@
     var set = function(o, n, v) {
         n = n.split('.');
         for (var i = 0; i < n.length; i++) {
+            if (!o[n[i]]) {
+                o[n[i]] = {};
+            }
             if (i < n.length - 1) {
                 o = o[n[i]];
             }
@@ -84,6 +87,7 @@
     };
 
     avalon.bootstrap = function(root, context) {
+        var templateId = 0;
         root = $(root);
         context = context || avalon.context;
 
@@ -109,7 +113,8 @@
             var o = get(context, bind);
             if (o instanceof Template) {
                 // Template bind
-                context[o.name] = o.render(root, context);
+                bind = o.name + '_' + ($(c).attr('id') || templateId++);
+                context[bind] = o.render(c, context);
             }
             else if(!o || o instanceof Observable) {
                 if (!o) {
