@@ -92,7 +92,7 @@
             var bind;
             for (var i = 0; i < c.attributes.length; i++) {
                 var b = c.attributes[i];
-                if (b && b.name && b.name[0] == ':') {
+                if (b && b.name && b.name.charAt(0) == ':') {
                     if (!bind) {
                         bind = b.name.slice(1);
                     }
@@ -118,13 +118,13 @@
 
                 // Input bind
                 if ($(c).is('input')) {
-                    $(c).on('input keyup blur change', function(e) {
-                        if (e.keyCode && e.keyCode != 8) {
+                    $(c).on('input keypress keyup', function(e) {
+                        if (e.type == 'keyup' && e.keyCode != 8)  {
                             return;
                         }
                         o.bind($(c).val());
                     });
-                    $(c).on('cut', function() {
+                    $(c).on('cut paste', function() {
                         defer(function() {
                             o.bind($(c).val());
                         });
