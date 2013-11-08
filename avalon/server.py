@@ -190,11 +190,11 @@ def _index():
                     _logger.error('View is invalid (%s)', filename)
                     continue
 
+            s = 'Avalon.template["{0}"] = new Avalon.Template("{0}", "{1}");'
             templates.append(
                 E.SCRIPT(
                     '\n'.join([
-                        'Avalon.template["{0}"] = new Avalon.Template("{1}");'
-                            .format(name, 'template-{0}'.format(name))
+                        s.format(name, 'template-{0}'.format(name))
                         for name in template_names
                     ]),
                     type='text/javascript'

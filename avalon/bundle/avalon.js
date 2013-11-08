@@ -9,11 +9,11 @@
     'use strict';
 
     var $ = global.jQuery || global.$;
+    var template = {};
     var avalon = global.Avalon = {
-        context: {}
+        context: {_template: template},
+        template: template
     };
-    var template = avalon.template = {};
-
 
     /* Model */
 
@@ -33,21 +33,23 @@
         };
     };
 
-    var Template = avalon.Template = function(name) {
-        var template = $('#' + name);
-        if (!template.length) {
+    var Template = avalon.Template = function(name, id) {
+        var $template = $('#' + id);
+        if (!$template.length) {
             console.error('Template', name, 'not found');
         }
 
+        this.name = name;
         this.render = function(root, context) {
             context = {
-                _parent: context
+                _parent: context,
+                _template: template
             };
 
-            root.html(template.html());
+            root.html($template.html());
             avalon.bootstrap(root, context);
             return context;
-        }
+        };
     };
 
 
@@ -61,6 +63,9 @@
         n = n.split('.');
         for (var i = 0; i < n.length; i++) {
             o = o[n[i]];
+            if (o == undefined) {
+                return undefined;
+            }
         }
         return o;
     };
@@ -101,11 +106,12 @@
                 return;
             }
 
-            if (template[bind] instanceof Template) {
-                context[bind] = template[bind].render(root, context);
+            var o = get(context, bind);
+            if (o instanceof Template) {
+                // Template bind
+                context[o.name] = o.render(root, context);
             }
-            else if(!context[bind] || context[bind] instanceof Observable) {
-                var o = get(context, bind);
+            else if(!o || o instanceof Observable) {
                 if (!o) {
                     o = set(context, bind, new Observable())
                 }
@@ -128,8 +134,16 @@
                     });
                 }
                 else {
+                    if (context[bind] instanceof Array) {
+                        // TODO
+                    }
                     o.listen(function(v) {
-                        $(c).text(v);
+                        if (v instanceof Array) {
+                            console.log('repeat');
+                        }
+                        else {
+                            $(c).text(v);
+                        }
                     });
                 }
             }
