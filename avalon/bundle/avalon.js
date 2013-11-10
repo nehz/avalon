@@ -21,20 +21,29 @@
         var listeners = [];
         this.value = v;
 
-        //TODO: cleanup listeners
-        this.listen = function(f) {
-            listeners.push(f);
+        this.listen = function(f, element) {
+            if (!element) {
+                console.log('Listen element not specified')
+            }
+            listeners.push([f, $(element)]);
             return f;
         };
+
         this.bind = function(v) {
             if (v == this.value) {
                 return v;
             }
 
             this.value = v;
-            $.each(listeners, function(i, f) {
-                f(v);
-            });
+            for(var i = 0; i < listeners.length; i++) {
+                if (listeners[i][1].closest('body').length) {
+                    listeners[i][0](v);
+                }
+                else {
+                    listeners.splice(i, 1);
+                    i--;
+                }
+            }
 
             return v;
         };
@@ -92,7 +101,8 @@
             var last = $root;
 
             if (!v.length) {
-                removed = value;
+                removed = repeat;
+                repeat = [];
             }
 
             for(var i = 0; i < v.length; i++) {
@@ -134,11 +144,12 @@
         };
 
         this.destroy = function() {
-            // TODO: cleanup child scopes
             for (var i = 0; i < value.length; i++) {
                 repeat[i].remove();
             }
-            delete context[bind + '_' + i];
+            value = [];
+            repeat = [];
+            delete context[bind + '_repeat'];
         };
     };
 
@@ -188,7 +199,7 @@
         $.each(root.children(), function(i, c) {
             var $c = $(c);
             var leaf = $c.contents().length == 0;
-            
+
             // Get binding
             var bind;
             for (var i = 0; i < c.attributes.length; i++) {
@@ -234,7 +245,7 @@
                     });
                     (o.listen(function(v) {
                         $c.val(v);
-                    }))(o.value);
+                    }, $c))(o.value);
                 }
                 else {
                     // Display bind
@@ -249,7 +260,6 @@
                     (o.listen(function(v) {
                         if (!v && !leaf) {
                             $c.css('display', 'none');
-                            // TODO: cleanup repeat
 
                             var repeat = $c.prop('repeat');
                             if (repeat) {
@@ -259,7 +269,6 @@
                             return;
                         }
 
-                        // TODO: refactor, also own repeat context (rework)
                         if (v instanceof Array) {
                             $c.css('display', 'none');
 
@@ -274,8 +283,6 @@
                         else {
                             $c.css('display', $c.prop('display'));
 
-                            //TODO: clean up code
-                            //TODO: repeated code, refactor
                             var repeat = $c.prop('repeat');
                             if (repeat) {
                                 $c.removeProp('repeat');
@@ -286,12 +293,8 @@
                             if (leaf) {
                                 $c.text(v);
                             }
-                            else {
-                                $c.html($c.prop('template').html());
-                                avalon.bootstrap($c, context);
-                            }
                         }
-                    }))(o.value);
+                    }, $c))(o.value);
                 }
             }
             else if(typeof(o) == 'number' || typeof(o) == 'string') {
