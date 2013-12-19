@@ -8,7 +8,6 @@
 
 import ast
 import inspect
-import sys
 
 
 #==============================================================================
@@ -16,6 +15,9 @@ import sys
 #==============================================================================
 
 class JSEnv(object):
+    def __getitem__(self, item):
+        pass
+
     def alert(self, message):
         pass
 
@@ -60,38 +62,40 @@ class JSCompiler(ast.NodeVisitor):
     def __init__(self, obj, name):
         self.obj = obj
         self.name = name
-        self.module = sys.modules[obj.__module__]
 
     def generic_visit(self, node):
         raise NotImplementedError(node)
 
+    # Module(stmt* body)
     def visit_Module(self, node):
-        module = []
+        template = []
         for child in node.body:
-            module.extend(self.visit(child) or [])
-        return '\n'.join(module)
+            template.extend(self.visit(child) or [])
+        return '\n'.join(template)
 
-    def visit_Expr(self, node):
-        return self.visit(node.value)
+    # Return(expr? value)
+    def visit_Return(self, node):
+        if node.value:
+            return 'return {0}'.format(self.visit(node.value))
+        else:
+            return 'return'
 
+    # FunctionDef(identifier name, arguments args,
+    # stmt* body, expr* decorator_list)
     def visit_FunctionDef(self, node):
-        if self.obj.__name__ == node.name:
+        if self.name and self.obj.__name__ == node.name:
             node.name = self.name
 
         args = ', '.join([self.visit(a) for a in node.args.args])
         template = ['function {0}({1}) {{'.format(node.name, args)]
 
         for c in node.body:
-            c = indent(self.visit(c))
-
-            if isinstance(c, list):
-                template.extend(c)
-            else:
-                template.append(c)
+            extend(template, indent(self.visit(c)))
 
         template.append('}')
         return template
 
+    # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
         def assign(target, value):
             return 'var {0} = {1}'.format(target, value)
@@ -111,65 +115,133 @@ class JSCompiler(ast.NodeVisitor):
 
         return template
 
+    # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
+    def visit_TryExcept(self, node):
+        template = ['try {']
+
+        for c in node.body:
+            extend(template, indent(self.visit(c)))
+
+        template.append('} catch(__exception__) {')
+
+        for c in node.handlers:
+            extend(template, indent(self.visit(c)))
+
+        template.append('}')
+        return template
+
+    # Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
+    def visit_Try(self, node):
+        return self.visit_TryExcept(node)
+
+    # Expr(expr value)
+    def visit_Expr(self, node):
+        return self.visit(node.value)
+
+    # Pass
     def visit_Pass(self, node):
         return ['// pass']
 
+    # BinOp(expr left, operator op, expr right)
     def visit_BinOp(self, node):
         left = self.visit(node.left)
         op = JSCompiler.BIN_OP[type(node.op)]
         right = self.visit(node.right)
         return '{0} {1} {2}'.format(left, op, right)
 
+    # UnaryOp(unaryop op, expr operand)
     def visit_UnaryOp(self, node):
         op = JSCompiler.UNARY_OP[type(node.op)]
         operand = self.visit(node.operand)
         return '{0}({1})'.format(op, operand)
 
+    # Call(expr func, expr* args, keyword* keywords,
+    # xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
         args = ', '.join([self.visit(a) for a in node.args])
         func = self.visit(node.func)
         return '{0}({1})'.format(func, args)
 
+    # Num(object n)
     def visit_Num(self, node):
         return str(node.n)
 
+    # Str(string s)
     def visit_Str(self, node):
         return '"{0}"'.format(node.s)
 
+    # Attribute(expr value, identifier attr, expr_context ctx)
     def visit_Attribute(self, node):
         value = self.visit(node.value)
-        if issubclass(getattr(self.module, value, None), JSEnv):
-            return node.attr
-        else:
-            return '{0}.{1}'.format(value, node.attr)
+        return '{0}.{1}'.format(value, node.attr)
 
+    # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, node):
         value = self.visit(node.value)
         index = self.visit(node.slice)
         return '{0}[{1}]'.format(value, index)
 
+    # Name(identifier id, expr_context ctx)
     def visit_Name(self, node):
+        if node.id == 'None':
+            return 'undefined'
+        elif node.id == 'True':
+            return 'true'
+        elif node.id == 'False':
+            return 'false'
         return str(node.id)
 
+    # List(expr* elts, expr_context ctx)
     def visit_List(self, node):
         return str([self.visit(c) for c in node.elts])
 
+    # Tuple(expr* elts, expr_context ctx)
     def visit_Tuple(self, node):
         return '[{0}]'.format(', '.join([self.visit(c) for c in node.elts]))
 
+    # Index(expr value)
     def visit_Index(self, node):
         return self.visit(node.value)
+
+    # ExceptHandler(expr? type, identifier? name, stmt* body)
+    def visit_ExceptHandler(self, node):
+        template = []
+        if node.type:
+            template.append('if (__exception__.type == {0}'.format(node.type))
+        else:
+            template.append('if (__exception__) {')
+
+        for c in node.body:
+            extend(template, indent(self.visit(c)))
+
+        template.append(indent('__exception__ = undefined'))
+        template.append('}')
+
+        return template
+
+    # arg = (identifier arg, expr? annotation)
+    def visit_arg(self, node):
+        return str(node.arg)
 
 
 #==============================================================================
 # Helpers
 #==============================================================================
 
-def indent(lines):
+def indent(lines, spaces=4, level=1):
+    spaces = ' ' * (spaces * level)
     if isinstance(lines, list):
-        return  ['    {0}'.format(lines) for l in lines]
+        return  ['{0}{1}'.format(spaces, l) for l in lines]
     else:
-        return '    {0}'.format(lines)
+        return '{0}{1}'.format(spaces, lines)
+
+
+def extend(template, lines):
+    if isinstance(lines, list):
+        template.extend(lines)
+    else:
+        template.append(lines)
+    return template
 
 
 def jscompile(obj, name=None):
