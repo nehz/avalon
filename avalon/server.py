@@ -37,7 +37,7 @@ _logger = logging.getLogger('avalon')
 _root_path = os.path.dirname(__file__)
 _view_path = 'view'
 _controller_path = 'controller'
-_static_path = 'static'
+_cdn = True
 _bundle_files = [
     (
         'SockJS',
@@ -209,7 +209,7 @@ def _index():
                 src='bundle/{0}'.format(b[1]),
                 type='text/javascript'
             ))
-        else:
+        elif _cdn:
             link = html.tostring(E.SCRIPT(
                 src='bundle/{0}'.format(b[2]),
                 type='text/javascript'
@@ -226,6 +226,11 @@ def _index():
                     type='text/javascript'
                 )
             ])
+        else:
+            body.append(E.SCRIPT(
+                src='bundle/{0}'.format(b[2]),
+                type='text/javascript'
+            ))
 
     # Append templates
     body.extend(templates)
@@ -248,7 +253,7 @@ def _bundle(filename):
 
 @get('/<filename:re:(?!\.).+>')
 def _static(filename):
-    return static_file(filename, root=_static_path)
+    return static_file(filename, root=_view_path)
 
 
 #==============================================================================
@@ -257,16 +262,16 @@ def _static(filename):
 
 def serve(
     mount_app=None, port=8080, verbose=False,
-    view_path=None, controller_path=None, static_path=None
+    view_path=None, controller_path=None, cdn=True
 ):
     # Chdir to app root
     root = inspect.getfile(inspect.currentframe().f_back)
     os.chdir(os.path.dirname(root) or '.')
 
-    global _view_path, _controller_path, _static_path
+    global _view_path, _controller_path, _cdn
     _view_path = view_path or _view_path
     _controller_path = controller_path or _controller_path
-    _static_path = static_path or _static_path
+    _cdn = cdn
 
     if verbose:
         _logger.setLevel(logging.INFO)
