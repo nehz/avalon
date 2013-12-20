@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
 # Name:         server
-# Description:  Web sever
+# Description:  Web server
 # Copyright:    Hybrid Labs
 # Licence:      Private
 #==============================================================================
@@ -41,13 +41,8 @@ _cdn = True
 _bundle_files = [
     (
         'SockJS',
-        '//cdn.sockjs.org/sockjs-0.3.4.min.js',
+        '//cdnjs.cloudflare.com/ajax/libs/sockjs-client/0.3.4/sockjs.min.js',
         'sockjs-0.3.4.min.js'
-    ),
-    (
-        'jQuery',
-        '//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js',
-        'jquery-1.10.2.min.js'
     ),
     (
         'JSON',
@@ -55,8 +50,18 @@ _bundle_files = [
         'json3-3.2.5.min.js'
     ),
     (
-        'Avalon',
-        'avalon.js'
+        'angular',
+        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.5/angular.min.js',
+        'angular-1.2.5/angular.min.js'
+    ),
+    (
+        'check(angular.module, ["ngAnimate"])',
+        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.5/angular-animate.min.js',
+        'angular-1.2.5/angular-animate.min.js'
+    ),
+    (
+        'angulate',
+        'angulate-0.1.0/angulate.js'
     )
 ]
 _router.DEFAULT_SETTINGS['sockjs_url'] = '/bundle/sockjs-0.3.4.min.js'
@@ -125,8 +130,7 @@ def _index():
     DOCTYPE = '<!DOCTYPE html>'
     style = E.STYLE()
     head = E.HEAD(style)
-    root = E.DIV(id='avalon-root')
-    body = E.BODY(root)
+    body = E.BODY()
     templates = []
     template_names = []
 
@@ -163,8 +167,8 @@ def _index():
                 if e.tag == 'head':
                     head.extend(e.getchildren())
                 elif e.tag == 'body':
-                    root.text = (root.text or '') + e.text
-                    root.extend(e.getchildren())
+                    body.text = (body.text or '') + e.text
+                    body.extend(e.getchildren())
                 elif e.tag in ['template', 'view']:
                     names = [n[1:] for n in e.keys() if n and n[0] == ':']
 
@@ -190,7 +194,7 @@ def _index():
                     _logger.error('View is invalid (%s)', filename)
                     continue
 
-            s = 'Avalon.template["{0}"] = new Avalon.Template("{0}", "{1}");'
+            s = 'angulate.registerTemplate("{0}", "{1}");'
             templates.append(
                 E.SCRIPT(
                     '\n'.join([
@@ -200,6 +204,12 @@ def _index():
                     type='text/javascript'
                 )
             )
+
+    # Append compiled Javascript functions
+    body.append(E.SCRIPT(
+        '\n'.join(f.__js__ for f in client._functions),
+        type='text/javascript'
+    ))
 
     # Append bundle
     for b in _bundle_files:
@@ -235,12 +245,11 @@ def _index():
     # Append templates
     body.extend(templates)
 
-    # Append compiled Javascript functions
-    for j in client._js:
-        body.append(E.SCRIPT(
-            '{0}; $("{1}").on("{2}", {3})'.format(*j),
-            type='text/javascript'
-        ))
+    # Bootstrap angular
+    body.append(E.SCRIPT(
+        'angular.bootstrap(document, ["angulate"])',
+        type='text/javascript'
+    ))
 
     return unescape(html.tostring(E.HTML(head, body), doctype=DOCTYPE,
                                   encoding='utf-8'))

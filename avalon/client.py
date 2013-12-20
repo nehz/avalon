@@ -6,6 +6,7 @@
 # Licence:      Private
 #==============================================================================
 
+from . import attrfunc
 from .compiler import jscompile
 
 
@@ -13,17 +14,35 @@ from .compiler import jscompile
 # Vars
 #==============================================================================
 
-_js = []
+_functions = []
 
 
 #==============================================================================
-# Functions
+# Decorators
 #==============================================================================
 
-def on(selector, events):
-    def _f(f):
-        name = '{0}.{1}'.format(f.__module__, f.__name__)
-        name = name.split('.', 1)[-1].replace('.', '_')
-        _js.append((jscompile(f, name), selector, events, name))
+def expose(f):
+    jscompile(f)
+    _functions.append(f)
+    return f
+
+
+@attrfunc
+def event(name, selector):
+    def d(f):
+        expose(f)
         return f
-    return _f
+
+    return d
+
+
+#==============================================================================
+# Client helpers
+#==============================================================================
+
+@expose
+def check(f, args):
+    try:
+        return f.apply(None, args)
+    except:
+        return None
