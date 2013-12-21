@@ -6,8 +6,8 @@
 # Licence:      Private
 #==============================================================================
 
-from . import attrfunc
 from .compiler import jscompile
+from .utils import attrfunc
 
 
 #==============================================================================
