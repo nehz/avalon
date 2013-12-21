@@ -221,6 +221,14 @@
   function componentDirective() {
     return {
       restrict: 'EA',
+      controller: ['$scope', '$element', '$attrs', '$injector',
+        function scopeController($scope, $element, $attrs, $injector) {
+          var controller = global[attr($element, $attrs)];
+          if (controller) {
+            $injector.invoke(controller, this, {$scope: $scope});
+          }
+        }
+      ],
       compile: function(element, attrs) {
         var name = attr(element, attrs);
         if (!templates[name]) {

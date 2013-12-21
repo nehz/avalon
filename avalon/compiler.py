@@ -8,6 +8,7 @@
 
 import ast
 import inspect
+import json
 
 
 #==============================================================================
@@ -86,13 +87,50 @@ class JSCompiler(ast.NodeVisitor):
         if self.name and self.obj.__name__ == node.name:
             node.name = self.name
 
+        context = getattr(node, 'context', 'this')
         args = ', '.join([self.visit(a) for a in node.args.args])
-        template = ['function {0}({1}) {{'.format(node.name, args)]
+        template = [
+            '{0}.{1} = function {1}({2}) {{'.format(
+                context, node.name, args)
+        ]
 
         for c in node.body:
             extend(template, indent(self.visit(c)))
 
         template.append('}')
+        return template
+
+    #ClassDef(identifier name, expr* bases, stmt* body, expr* decorator_list)
+    def visit_ClassDef(self, node):
+        from . import client
+
+        if len(node.bases) > 1:
+            raise NotImplementedError('Multiple inheritance not implemented')
+
+        template = []
+        context = getattr(node, 'context', 'this')
+        is_scope = node.name in client._scopes
+        inject = ['$scope'] if is_scope else []
+        classname = self.visit(node.bases[0]).split('.')[-1] \
+            if is_scope else node.name
+
+        template.append('{0}.{1} = function {2}({3}) {{'.format(
+            context, classname, node.name, ', '.join(inject)))
+
+        for c in node.body:
+            if is_scope:
+                c.context = '$scope'
+
+            extend(template, indent(self.visit(c)))
+
+        template.append('}')
+        template.append('{0}.{1}.$inject = {2}'.format(
+            context, classname, json.dumps(inject)))
+
+        if not is_scope and node.bases:
+            template.append('{0}.{1}.prototype = new {2}()'.format(
+                context, node.name, self.visit(node.bases[0])))
+
         return template
 
     # Assign(expr* targets, expr value)
