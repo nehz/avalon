@@ -153,6 +153,11 @@ class JSCompiler(ast.NodeVisitor):
 
         return template
 
+    # Print(expr? dest, expr* values, bool nl)
+    def visit_Print(self, node):
+        return 'console.log({0})'.format(
+            ', '.join([self.visit(v) for v in node.values]))
+
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
         template = ['try {']
@@ -196,8 +201,13 @@ class JSCompiler(ast.NodeVisitor):
     # Call(expr func, expr* args, keyword* keywords,
     # xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
-        args = ', '.join([self.visit(a) for a in node.args])
         func = self.visit(node.func)
+
+        if func == 'print':
+            node.values = node.args
+            return self.visit_Print(node)
+
+        args = ', '.join([self.visit(a) for a in node.args])
         return '{0}({1})'.format(func, args)
 
     # Num(object n)
