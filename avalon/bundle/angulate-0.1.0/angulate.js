@@ -64,8 +64,8 @@
 
   /* Directives */
 
-  bindDirective.$inject = ['$compile', '$animate'];
-  function bindDirective($compile, $animate) {
+  bindDirective.$inject = ['$compile', '$animate', '$parse'];
+  function bindDirective($compile, $animate, $parse) {
     function forkElement(element, attr, attrValue, scope) {
       var clone = element.clone()
         .attr(attr, attrValue)
@@ -76,6 +76,21 @@
         element: clone,
         scope: scope
       };
+    }
+
+    function equalityScope(scope) {
+      // Patch $watch and $watchCollection to use object equality
+      var _$watch = scope.$watch;
+
+      scope.$watch = function $watch(watch, listener) {
+        return _$watch.apply(this, [watch, listener, true]);
+      };
+
+      scope.$watchCollection = function $watchCollection(watch, listener) {
+        return _$watch.apply(this, [watch, listener, true]);
+      };
+
+      return scope;
     }
 
     function repeatScopeSearch(scope, name, level) {
@@ -102,17 +117,20 @@
       }
       else {
         var display = element.css('display');
-        var repeat = '_v in ' + bind + ' track by ' +
+        var bindName = angular.isFunction($parse(bind)(scope)) ?
+          bind + '(this)' : bind;
+
+        var repeat = '_v in ' + bindName + ' track by ' +
           (attrs.track || '$index');
 
         // Create repeat element after this element
         repeat = forkElement(element, 'ng-repeat', repeat,
-          scope.$parent.$new());
+          equalityScope(scope.$parent.$new()));
 
         element.after(repeat.element);
 
         // Watch changes and adjust view depending bind data type
-        scope.$watch(bind, function bindWatch(v) {
+        scope.$watch(bindName, function bindWatch(v) {
           if (element.attr('leaf')) {
             element.text(v == undefined ? '' : v);
             repeat.scope[bind] = null;
@@ -140,7 +158,7 @@
               }
             }
           }
-        });
+        }, true);
 
         // Extend repeat scope binding
         if (repeatScopeValue) {
