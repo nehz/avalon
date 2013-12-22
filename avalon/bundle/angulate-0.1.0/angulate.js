@@ -234,7 +234,7 @@
         if (!templates[name]) {
           exception(element, 'Template not found', name);
         }
-        element.replaceWith(templates[name].html());
+        element.html(templates[name].html());
       }
     }
   }
