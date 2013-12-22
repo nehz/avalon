@@ -247,7 +247,10 @@ def _index():
 
     # Bootstrap angular
     body.append(E.SCRIPT(
-        'angular.bootstrap(document, ["angulate"])',
+        '\n'.join([
+            'window.app = angular.module("app", ["angulate"]);'
+            'angular.bootstrap(document, ["app"]);'
+        ]),
         type='text/javascript'
     ))
 
