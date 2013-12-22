@@ -225,7 +225,10 @@
         function scopeController($scope, $element, $attrs, $injector) {
           var controller = global[attr($element, $attrs)];
           if (controller) {
-            $injector.invoke(controller, this, {$scope: $scope});
+            $injector.invoke(controller, this, {
+              $scope: $scope,
+              $element: $element
+            });
           }
         }
       ],
