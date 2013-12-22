@@ -216,7 +216,7 @@ class JSCompiler(ast.NodeVisitor):
 
     # Str(string s)
     def visit_Str(self, node):
-        return '"{0}"'.format(node.s)
+        return '"{0}"'.format(node.s).replace('\n', '\\n\\\n')
 
     # Attribute(expr value, identifier attr, expr_context ctx)
     def visit_Attribute(self, node):
