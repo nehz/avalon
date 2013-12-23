@@ -46,18 +46,23 @@ _bundle_files = [
     ),
     (
         'JSON',
-        '//cdnjs.cloudflare.com/ajax/libs/json3/3.2.5/json3.min.js',
-        'json3-3.2.5.min.js'
+        '//cdnjs.cloudflare.com/ajax/libs/json3/3.2.6/json3.min.js',
+        'json3-3.2.6.min.js'
+    ),
+    (
+        'jQuery',
+        '//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js',
+        'jquery-1.10.2/jquery.min.js'
     ),
     (
         'angular',
-        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.5/angular.min.js',
-        'angular-1.2.5/angular.min.js'
+        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.6/angular.min.js',
+        'angular-1.2.6/angular.min.js'
     ),
     (
         'check(angular.module, ["ngAnimate"])',
-        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.5/angular-animate.min.js',
-        'angular-1.2.5/angular-animate.min.js'
+        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.6/angular-animate.min.js',
+        'angular-1.2.6/angular-animate.min.js'
     ),
     (
         'angulate',
