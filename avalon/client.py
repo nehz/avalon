@@ -29,7 +29,7 @@ def expose(obj):
 
 
 @attrfunc
-def event(name, selector):
+def event(name, selector=''):
     def d(f):
         f.event = (name, selector)
         return f
