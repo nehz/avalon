@@ -111,7 +111,7 @@ class JSCompiler(ast.NodeVisitor):
         context = getattr(node, 'context', 'this')
 
         if node.bases:
-            scope_name = self.visit(node.bases[0]).split('.')[-1]
+            scope_name = node.bases[0].attr
             scope = client._scopes.get(scope_name, None)
             class_name = scope_name
         else:
@@ -127,8 +127,8 @@ class JSCompiler(ast.NodeVisitor):
                 c.context = '$scope'
             extend(template, indent(self.visit(c)))
 
-        # Events
         if scope:
+            # Events
             template_on = '\n'.join(indent([
                 '$element.on("{0}", "{1}", function eventHandler(e) {{',
                 '  var t = angular.element(e.target).scope()',
@@ -141,6 +141,15 @@ class JSCompiler(ast.NodeVisitor):
                 '$scope.$on("$destroy", function() {',
                 '  $element.off()',
                 '})'
+            ]))
+
+            # Support repeat scope
+            extend(template, indent([
+                'var _getattr = $scope.__getattr__',
+                '$scope.__getattr__ = function __getattr__(self, value) {',
+                '  return self._value && self._value[value] ||',
+                '    _getattr && _getattr(self, value)',
+                '}'
             ]))
 
         template.append('}')
