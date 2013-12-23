@@ -54,6 +54,21 @@
     return attr;
   }
 
+  function equalityScope(scope) {
+    // Patch $watch and $watchCollection to use object equality
+    var _$watch = scope.$watch;
+
+    scope.$watch = function $watch(watch, listener) {
+      return _$watch.apply(this, [watch, listener, true]);
+    };
+
+    scope.$watchCollection = function $watchCollection(watch, listener) {
+      return _$watch.apply(this, [watch, listener, true]);
+    };
+
+    return scope;
+  }
+
   function registerTemplate(name, element) {
     if (angular.isString(element)) {
       element = angular.element(document.querySelector('#' + element));
@@ -76,21 +91,6 @@
         element: clone,
         scope: scope
       };
-    }
-
-    function equalityScope(scope) {
-      // Patch $watch and $watchCollection to use object equality
-      var _$watch = scope.$watch;
-
-      scope.$watch = function $watch(watch, listener) {
-        return _$watch.apply(this, [watch, listener, true]);
-      };
-
-      scope.$watchCollection = function $watchCollection(watch, listener) {
-        return _$watch.apply(this, [watch, listener, true]);
-      };
-
-      return scope;
     }
 
     function repeatScopeSearch(scope, name, level) {
