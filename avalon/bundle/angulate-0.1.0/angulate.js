@@ -10,6 +10,7 @@
 
   var angular = global.angular;
   var angulate = global.angulate = angular.module('angulate', []);
+  var selector = global.jQuery || document.querySelectorAll;
   var templates = {};
 
 
@@ -71,7 +72,7 @@
 
   function registerTemplate(name, element) {
     if (angular.isString(element)) {
-      element = angular.element(document.querySelector('#' + element));
+      element = angular.element(selector('#' + element));
     }
     templates[name] = element;
   }
