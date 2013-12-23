@@ -254,8 +254,11 @@ class JSCompiler(ast.NodeVisitor):
 
     # Attribute(expr value, identifier attr, expr_context ctx)
     def visit_Attribute(self, node):
-        value = self.visit(node.value)
-        return '{0}.{1}'.format(value, node.attr)
+        if isinstance(node.ctx, ast.Load):
+            template = '({0}.{1} || {0}.__getattr__ && {0}.__getattr__({0}, "{1}"))'
+        else:
+            template = '{0}.{1}'
+        return template.format(self.visit(node.value), node.attr)
 
     # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, node):
