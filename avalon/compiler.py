@@ -154,8 +154,15 @@ class JSCompiler(ast.NodeVisitor):
 
     # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
+        context = getattr(node, 'context', None)
+
         def assign(target, value):
-            return 'var {0} = {1}'.format(target, value)
+            if context:
+                return '{0}.{1} = {2}'.format(context, target, value)
+            elif '.' in target:
+                return '{0} = {1}'.format(target, value)
+            else:
+                return 'var {0} = {1}'.format(target, value)
 
         template = []
         for target in node.targets:
