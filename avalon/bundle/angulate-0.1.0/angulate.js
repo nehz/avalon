@@ -98,14 +98,14 @@
         return undefined;
       }
 
-      return scope._v && scope._v[name] != undefined ?
-        (new Array(level + 1)).join('$parent.') + '_v.' + name :
+      return scope._value && scope._value[name] != undefined ?
+        (new Array(level + 1)).join('$parent.') + '_value.' + name :
         repeatScopeSearch(scope.$parent, name, level + 1);
     }
 
     function link(scope, element, attrs) {
       var bind = attr(element, attrs);
-      var repeatScopeValue = scope._v == undefined ? undefined :
+      var repeatScopeValue = scope._value == undefined ? undefined :
         repeatScopeSearch(scope, bind, 0);
 
       if (element.attr('model')) {
@@ -120,7 +120,7 @@
         var bindName = angular.isFunction($parse(bind)(scope)) ?
           bind + '(this)' : bind;
 
-        var repeat = '_v in ' + bindName + ' track by ' +
+        var repeat = '_value in ' + bindName + ' track by ' +
           (attrs.track || '$index');
 
         // Create repeat element after this element
