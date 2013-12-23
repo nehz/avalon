@@ -131,7 +131,8 @@ class JSCompiler(ast.NodeVisitor):
         if scope:
             template_on = '\n'.join(indent([
                 '$element.on("{0}", "{1}", function eventHandler(e) {{',
-                '  $scope.$apply(function() {{ $scope.{2}($scope, e) }})',
+                '  var t = angular.element(e.target).scope()',
+                '  $scope.$apply(function() {{ $scope.{2}($scope, t, e) }})',
                 '}})'
             ]))
 
