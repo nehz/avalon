@@ -192,16 +192,19 @@
     }
   }
 
-  ifDirective.$inject = ['$animate'];
-  function ifDirective($animate) {
+  ifDirective.$inject = ['$animate', '$parse'];
+  function ifDirective($animate, $parse) {
     return {
       restrict: 'EA',
       link: function(scope, element, attrs) {
         var condition = attr(element, attrs);
+        var conditionName = angular.isFunction($parse(condition)(scope)) ?
+          condition + '(this)' : condition;
+
         var negate = attrs.not != undefined;
         var marker = negate ?
-          document.createComment('if: ' + condition) :
-          document.createComment('if not: ' + condition);
+          document.createComment('if: ' + conditionName) :
+          document.createComment('if not: ' + conditionName);
 
         // Insert marker to track DOM location
         marker = angular.element(marker);
@@ -209,14 +212,14 @@
         element.remove();
         marker.after(element);
 
-        scope.$watch(condition, function ifWatch(v) {
+        scope.$watch(conditionName, function ifWatch(v) {
           if (negate ? !v : v) {
             enter($animate, element, marker);
           }
           else {
             leave($animate, element);
           }
-        });
+        }, true);
       }
     }
   }
