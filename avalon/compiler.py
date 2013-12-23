@@ -198,6 +198,13 @@ class JSCompiler(ast.NodeVisitor):
         operand = self.visit(node.operand)
         return '{0}({1})'.format(op, operand)
 
+    # Dict(expr* keys, expr* values)
+    def visit_Dict(self, node):
+        return '{{ {0} }}'.format(', '.join([
+            '{0}: {1}'.format(self.visit(kv[0]), self.visit(kv[1]))
+            for kv in zip(node.keys, node.values)
+        ]))
+
     # Call(expr func, expr* args, keyword* keywords,
     # xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
