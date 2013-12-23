@@ -248,7 +248,7 @@ class JSCompiler(ast.NodeVisitor):
 
     # List(expr* elts, expr_context ctx)
     def visit_List(self, node):
-        return str([self.visit(c) for c in node.elts])
+        return '[{0}]'.format(', '.join([self.visit(c) for c in node.elts]))
 
     # Tuple(expr* elts, expr_context ctx)
     def visit_Tuple(self, node):
