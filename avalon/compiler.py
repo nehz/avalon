@@ -105,29 +105,48 @@ class JSCompiler(ast.NodeVisitor):
         from . import client
 
         if len(node.bases) > 1:
-            raise NotImplementedError('Multiple inheritance not implemented')
+            raise NotImplementedError('Multiple inheritance not supported')
 
         template = []
         context = getattr(node, 'context', 'this')
-        is_scope = node.name in client._scopes
-        inject = ['$scope'] if is_scope else []
-        classname = self.visit(node.bases[0]).split('.')[-1] \
-            if is_scope else node.name
 
+        if node.bases:
+            scope_name = self.visit(node.bases[0]).split('.')[-1]
+            scope = client._scopes.get(scope_name, None)
+            class_name = scope_name
+        else:
+            scope = None
+            class_name = node.name
+
+        inject = ['$scope', '$element'] if scope else []
         template.append('{0}.{1} = function {2}({3}) {{'.format(
-            context, classname, node.name, ', '.join(inject)))
+            context, class_name, node.name, ', '.join(inject)))
 
         for c in node.body:
-            if is_scope:
+            if scope:
                 c.context = '$scope'
-
             extend(template, indent(self.visit(c)))
+
+        # Events
+        if scope:
+            template_on = '\n'.join(indent([
+                '$element.on("{0}", "{1}", function eventHandler(e) {{',
+                '  $scope.$apply(function() {{ $scope.{2}($scope, e) }})',
+                '}})'
+            ]))
+
+            extend(template, [template_on.format(*e) for e in scope['events']])
+            extend(template, indent([
+                '$scope.$on("$destroy", function() {',
+                '  $element.off()',
+                '})'
+            ]))
 
         template.append('}')
         template.append('{0}.{1}.$inject = {2}'.format(
-            context, classname, json.dumps(inject)))
+            context, class_name, json.dumps(inject)))
 
-        if not is_scope and node.bases:
+        if not scope and node.bases:
             template.append('{0}.{1}.prototype = new {2}()'.format(
                 context, node.name, self.visit(node.bases[0])))
 

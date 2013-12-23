@@ -15,7 +15,7 @@ from .utils import attrfunc
 #==============================================================================
 
 _functions = []
-_scopes = []
+_scopes = {}
 
 
 #==============================================================================
@@ -43,10 +43,24 @@ def event(name, selector=''):
 
 class ScopeType(type):
     def __new__(mcs, name, bases, classdict):
+        assert len(bases) <= 1, 'Multiple inheritance not supported'
+
         scope = type.__new__(mcs, name, bases, classdict)
-        if [b for b in bases if getattr(b, 'name', None)]:
+        scope_name = getattr(bases[0], 'name', None) if bases else None
+
+        if scope_name:
+            assert scope_name not in _scopes, \
+                'Scope.{0} already defined'.format(scope_name)
+
+            _scopes[scope_name] = {
+                'events': [
+                    (f.event[0], f.event[1], f_name)
+                    for f_name, f in classdict.items()
+                    if getattr(f, 'event', None)
+                ]
+            }
+
             scope = type.__new__(mcs, name, bases, classdict)
-            _scopes.append(name)
             expose(scope)
 
         return scope
