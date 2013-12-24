@@ -161,7 +161,7 @@ class JSCompiler(ast.NodeVisitor):
             extend(tpl, indent([
                 'var _getattr = $scope.__getattr__',
                 '$scope.__getattr__ = function __getattr__(self, value) {',
-                '  return self._value && self._value[value] ||',
+                '  return self.$item && self.$item[value] ||',
                 '    _getattr && _getattr(self, value)',
                 '}'
             ]))
