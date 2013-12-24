@@ -9,6 +9,7 @@
 import ast
 import inspect
 import json
+import sys
 
 from . import client
 
@@ -64,6 +65,7 @@ class JSCompiler(ast.NodeVisitor):
 
     def __init__(self, obj):
         self.obj = obj
+        self.module = sys.modules[obj.__module__]
         self.node_chain = [None]
 
     def visit(self, node):
@@ -72,6 +74,14 @@ class JSCompiler(ast.NodeVisitor):
         ret = super(JSCompiler, self).visit(node)
         self.node_chain.pop()
         return ret
+
+    def lookup(self, name):
+        value = getattr(self.module, name, None)
+
+        if value is None:
+            return None
+        elif value is client.session:
+            return '_session'
 
     def generic_visit(self, node):
         raise NotImplementedError(node)
@@ -281,7 +291,10 @@ class JSCompiler(ast.NodeVisitor):
 
     # Name(identifier id, expr_context ctx)
     def visit_Name(self, node):
-        if node.id == 'None':
+        lookup = self.lookup(node.id)
+        if lookup:
+            return lookup
+        elif node.id == 'None':
             return 'undefined'
         elif node.id == 'True':
             return 'true'

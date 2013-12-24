@@ -199,7 +199,7 @@ def _index():
                     _logger.error('View is invalid (%s)', filename)
                     continue
 
-            s = 'angulate.registerTemplate("{0}", "{1}");'
+            s = 'angulate.registerTemplate("{0}", "{1}")'
             templates.append(
                 E.SCRIPT(
                     '\n'.join([
@@ -253,8 +253,12 @@ def _index():
     # Bootstrap angular
     body.append(E.SCRIPT(
         '\n'.join([
-            'window.app = angular.module("app", ["angulate"]);'
-            'angular.bootstrap(document, ["app"]);'
+            'window._session = {}',
+            'window.app = angular.module("app", ["ngAnimate", "angulate"])',
+            'window.app.run(["$rootScope", function($rootScope) {',
+            '  $rootScope._session = window._session',
+            '}])',
+            'angular.bootstrap(document, ["app"])'
         ]),
         type='text/javascript'
     ))

@@ -36,7 +36,7 @@ def event(name, selector=''):
 
 
 #==============================================================================
-# Scope object
+# Scope, Session
 #==============================================================================
 
 class ScopeType(type):
@@ -75,7 +75,12 @@ class Scope(object):
         return scope
 
 
+class Session(dict):
+    pass
+
+
 template = Scope()
+session = Session()
 
 
 #==============================================================================
