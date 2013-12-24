@@ -85,8 +85,8 @@
 
   /* Directives */
 
-  bindDirective.$inject = ['$compile', '$animate', '$parse'];
-  function bindDirective($compile, $animate, $parse) {
+  bindDirective.$inject = ['$compile', '$animate'];
+  function bindDirective($compile, $animate) {
     function forkElement(element, attr, attrValue, scope) {
       var clone = element.clone()
         .attr(attr, attrValue)
@@ -111,8 +111,8 @@
 
     function link(scope, element, attrs) {
       var bind = attr(element, attrs);
-      var repeatScopeValue = scope._value == undefined ? undefined :
-        repeatScopeSearch(scope, bind, 0);
+      var repeatScopeValue = scope._value == undefined ?
+        undefined : repeatScopeSearch(scope, bind, 0);
 
       if (element.attr('model')) {
         // Replace this element with a clone with ng-model
@@ -197,8 +197,8 @@
     }
   }
 
-  ifDirective.$inject = ['$animate', '$parse'];
-  function ifDirective($animate, $parse) {
+  ifDirective.$inject = ['$animate'];
+  function ifDirective($animate) {
     return {
       restrict: 'EA',
       link: function(scope, element, attrs) {
