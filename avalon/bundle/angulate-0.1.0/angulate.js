@@ -197,6 +197,37 @@
     }
   }
 
+  function classDirective() {
+    return {
+      restrict: 'A',
+      link: function(scope, elements, attrs) {
+        var classTrack = {};
+        angular.forEach(attrs['class'].split(' '), function(a) {
+          if (a[0] !== ':') return;
+
+          var cls = a.slice(1);
+          var className = watch(scope, a.slice(1));
+          scope.$watch(className, function(v, old) {
+            if (old) {
+              if (!angular.isString(old)) old = cls;
+              classTrack[old] = (classTrack[old] || 0) - 1;
+              if (classTrack[old] <= 0) {
+                delete classTrack[old];
+                elements.removeClass(old);
+              }
+            }
+
+            if (v) {
+              if (!angular.isString(v)) v = cls;
+              classTrack[v] = (classTrack[v] || 0) + 1;
+              elements.addClass(v);
+            }
+          });
+        });
+      }
+    }
+  }
+
   ifDirective.$inject = ['$animate'];
   function ifDirective($animate) {
     return {
@@ -269,6 +300,7 @@
 
   // Register directives
   angulate.directive('bind', bindDirective);
+  angulate.directive('class', classDirective);
   angulate.directive('if', ifDirective);
   angulate.directive('template', templateDirective);
   angulate.directive('component', componentDirective);
