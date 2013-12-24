@@ -255,6 +255,19 @@ class JSCompiler(ast.NodeVisitor):
             for kv in zip(node.keys, node.values)
         ]))
 
+    #Compare(expr left, cmpop* ops, expr* comparators)
+    def visit_Compare(self, node):
+        left = self.visit(node.left)
+        ops = [JSCompiler.COMPARE_OP[type(op)] for op in node.ops]
+        comparators = [self.visit(c) for c in node.comparators]
+
+        tpl = []
+        for op, right in zip(ops, comparators):
+            tpl.append('{0} {1} {2}'.format(left, op, right))
+            left = right
+
+        return ' && '.join(tpl)
+
     # Call(expr func, expr* args, keyword* keywords,
     # xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
