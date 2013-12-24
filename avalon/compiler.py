@@ -60,9 +60,8 @@ class JSCompiler(ast.NodeVisitor):
         ast.IsNot: '!==',
     }
 
-    def __init__(self, obj, name):
+    def __init__(self, obj):
         self.obj = obj
-        self.name = name
 
     def generic_visit(self, node):
         raise NotImplementedError(node)
@@ -84,9 +83,6 @@ class JSCompiler(ast.NodeVisitor):
     # FunctionDef(identifier name, arguments args,
     # stmt* body, expr* decorator_list)
     def visit_FunctionDef(self, node):
-        if self.name and self.obj.__name__ == node.name:
-            node.name = self.name
-
         context = getattr(node, 'context', 'this')
         args = ', '.join([self.visit(a) for a in node.args.args])
         template = [
@@ -338,8 +334,8 @@ def extend(template, lines):
     return template
 
 
-def jscompile(obj, name=None):
+def jscompile(obj):
     if not getattr(obj, '__js__', None):
         node = ast.parse(inspect.getsource(obj))
-        obj.__js__ = JSCompiler(obj, name).visit(node)
+        obj.__js__ = JSCompiler(obj).visit(node)
     return obj.__js__
