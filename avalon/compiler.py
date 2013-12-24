@@ -62,6 +62,14 @@ class JSCompiler(ast.NodeVisitor):
 
     def __init__(self, obj):
         self.obj = obj
+        self.node_chain = [None]
+
+    def visit(self, node):
+        node.parent = self.node_chain[-1]
+        self.node_chain.append(node)
+        ret = super(JSCompiler, self).visit(node)
+        self.node_chain.pop()
+        return ret
 
     def generic_visit(self, node):
         raise NotImplementedError(node)
