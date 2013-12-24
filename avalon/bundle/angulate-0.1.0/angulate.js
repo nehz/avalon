@@ -305,7 +305,22 @@
   angulate.directive('template', templateDirective);
   angulate.directive('component', componentDirective);
 
-  // Pre-create for Internet Explorer (IE)
+
+  /* IE fixes */
+
+  if (!Array.prototype.indexOf) {
+    Array.prototype.indexOf = function(find, i) {
+      if (i === undefined) i = 0;
+      if (i < 0) i += this.length;
+      if (i < 0) i = 0;
+      for (var n = this.length; i < n; i++) {
+        if (i in this && this[i] === find)
+          return i;
+      }
+      return -1;
+    };
+  }
+
   document.createElement('bind');
   document.createElement('if');
   document.createElement('template');
