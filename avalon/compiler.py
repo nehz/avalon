@@ -203,6 +203,13 @@ class JSCompiler(ast.NodeVisitor):
 
         return tpl
 
+    # AugAssign(expr target, operator op, expr value)
+    def visit_AugAssign(self, node):
+        target = self.visit(node.target)
+        op = JSCompiler.BIN_OP[type(node.op)]
+        value = self.visit(node.value)
+        return '{0} {1}= {2}'.format(target, op, value)
+
     # Print(expr? dest, expr* values, bool nl)
     def visit_Print(self, node):
         return 'console.log({0})'.format(
