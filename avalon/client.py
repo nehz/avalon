@@ -76,7 +76,8 @@ class Scope(object):
 
 
 class Session(dict):
-    pass
+    def __getattr__(self, name):
+        return self[name]
 
 
 template = Scope()
