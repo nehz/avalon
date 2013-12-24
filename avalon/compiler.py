@@ -208,6 +208,21 @@ class JSCompiler(ast.NodeVisitor):
         return 'console.log({0})'.format(
             ', '.join([self.visit(v) for v in node.values]))
 
+    # If(expr test, stmt* body, stmt* orelse)
+    def visit_If(self, node):
+        tpl = ['if ({0}) {{'.format(self.visit(node.test))]
+        for c in node.body:
+            extend(tpl, indent(self.visit(c)))
+        tpl.append('}')
+
+        if node.orelse:
+            tpl.append('else {')
+            for c in node.orelse:
+                extend(tpl, indent(self.visit(c)))
+            tpl.append('}')
+
+        return tpl
+
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
         tpl = ['try {']
