@@ -6,7 +6,6 @@
 # Licence:      Private
 #==============================================================================
 
-from .compiler import jscompile
 from .utils import attrfunc
 
 
@@ -23,7 +22,6 @@ _scopes = {}
 #==============================================================================
 
 def expose(obj):
-    jscompile(obj)
     _functions.append(obj)
     return obj
 
@@ -81,7 +79,7 @@ template = Scope()
 
 
 #==============================================================================
-# Client helpers
+# Helpers
 #==============================================================================
 
 @expose
@@ -90,3 +88,8 @@ def check(f, args):
         return f.apply(None, args)
     except:
         return None
+
+
+def compiled():
+    from .compiler import jscompile
+    return [jscompile(f) for f in _functions]

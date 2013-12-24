@@ -10,6 +10,8 @@ import ast
 import inspect
 import json
 
+from . import client
+
 
 #==============================================================================
 # JSCompiler
@@ -106,8 +108,6 @@ class JSCompiler(ast.NodeVisitor):
 
     #ClassDef(identifier name, expr* bases, stmt* body, expr* decorator_list)
     def visit_ClassDef(self, node):
-        from . import client
-
         if len(node.bases) > 1:
             raise NotImplementedError('Multiple inheritance not supported')
 

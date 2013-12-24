@@ -212,7 +212,7 @@ def _index():
 
     # Append compiled Javascript functions
     body.append(E.SCRIPT(
-        '\n'.join(f.__js__ for f in client._functions),
+        '\n'.join(f for f in client.compiled()),
         type='text/javascript'
     ))
 
