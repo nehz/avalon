@@ -178,7 +178,7 @@
       restrict: 'EA',
       scope: true,
       compile: function(element, attr) {
-        var model = ['INPUT', 'SELECT'];
+        var model = ['INPUT', 'SELECT', 'TEXTAREA'];
         var tag = element.prop('tagName').toUpperCase();
         if (model.indexOf(tag) != -1) {
           attr.$set('model', true);
