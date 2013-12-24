@@ -68,10 +68,10 @@ class JSCompiler(ast.NodeVisitor):
 
     # Module(stmt* body)
     def visit_Module(self, node):
-        template = []
+        tpl = []
         for child in node.body:
-            template.extend(self.visit(child) or [])
-        return '\n'.join(template)
+            tpl.extend(self.visit(child) or [])
+        return '\n'.join(tpl)
 
     # Return(expr? value)
     def visit_Return(self, node):
@@ -85,16 +85,16 @@ class JSCompiler(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         context = getattr(node, 'context', 'this')
         args = ', '.join([self.visit(a) for a in node.args.args])
-        template = [
+        tpl = [
             '{0}.{1} = function {1}({2}) {{'.format(
                 context, node.name, args)
         ]
 
         for c in node.body:
-            extend(template, indent(self.visit(c)))
+            extend(tpl, indent(self.visit(c)))
 
-        template.append('}')
-        return template
+        tpl.append('}')
+        return tpl
 
     #ClassDef(identifier name, expr* bases, stmt* body, expr* decorator_list)
     def visit_ClassDef(self, node):
@@ -103,7 +103,7 @@ class JSCompiler(ast.NodeVisitor):
         if len(node.bases) > 1:
             raise NotImplementedError('Multiple inheritance not supported')
 
-        template = []
+        tpl = []
         context = getattr(node, 'context', 'this')
 
         if node.bases:
@@ -115,32 +115,32 @@ class JSCompiler(ast.NodeVisitor):
             class_name = node.name
 
         inject = ['$scope', '$element'] if scope else []
-        template.append('{0}.{1} = function {2}({3}) {{'.format(
+        tpl.append('{0}.{1} = function {2}({3}) {{'.format(
             context, class_name, node.name, ', '.join(inject)))
 
         for c in node.body:
             if scope:
                 c.context = '$scope'
-            extend(template, indent(self.visit(c)))
+            extend(tpl, indent(self.visit(c)))
 
         if scope:
             # Events
-            template_on = '\n'.join(indent([
+            tpl_on = '\n'.join(indent([
                 '$element.on("{0}", "{1}", function eventHandler(e) {{',
                 '  var t = angular.element(e.target).scope()',
                 '  $scope.$apply(function() {{ $scope.{2}($scope, t, e) }})',
                 '}})'
             ]))
 
-            extend(template, [template_on.format(*e) for e in scope['events']])
-            extend(template, indent([
+            extend(tpl, [tpl_on.format(*e) for e in scope['events']])
+            extend(tpl, indent([
                 '$scope.$on("$destroy", function() {',
                 '  $element.off()',
                 '})'
             ]))
 
             # Support repeat scope
-            extend(template, indent([
+            extend(tpl, indent([
                 'var _getattr = $scope.__getattr__',
                 '$scope.__getattr__ = function __getattr__(self, value) {',
                 '  return self._value && self._value[value] ||',
@@ -148,15 +148,15 @@ class JSCompiler(ast.NodeVisitor):
                 '}'
             ]))
 
-        template.append('}')
-        template.append('{0}.{1}.$inject = {2}'.format(
+        tpl.append('}')
+        tpl.append('{0}.{1}.$inject = {2}'.format(
             context, class_name, json.dumps(inject)))
 
         if not scope and node.bases:
-            template.append('{0}.{1}.prototype = new {2}()'.format(
+            tpl.append('{0}.{1}.prototype = new {2}()'.format(
                 context, node.name, self.visit(node.bases[0])))
 
-        return template
+        return tpl
 
     # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
@@ -170,20 +170,20 @@ class JSCompiler(ast.NodeVisitor):
             else:
                 return 'var {0} = {1}'.format(target, value)
 
-        template = []
+        tpl = []
         for target in node.targets:
             if type(target) is ast.Tuple:
                 stmt = 'var _assign = {0}'.format(self.visit(node.value))
-                template.append(stmt)
+                tpl.append(stmt)
 
                 for i, t in enumerate(target.elts):
                     v = '_assign[{0}]'.format(i)
-                    template.append(assign(self.visit(t), v))
+                    tpl.append(assign(self.visit(t), v))
             else:
                 stmt = assign(self.visit(target), self.visit(node.value))
-                template.append(stmt)
+                tpl.append(stmt)
 
-        return template
+        return tpl
 
     # Print(expr? dest, expr* values, bool nl)
     def visit_Print(self, node):
@@ -192,18 +192,18 @@ class JSCompiler(ast.NodeVisitor):
 
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
-        template = ['try {']
+        tpl = ['try {']
 
         for c in node.body:
-            extend(template, indent(self.visit(c)))
+            extend(tpl, indent(self.visit(c)))
 
-        template.append('} catch(__exception__) {')
+        tpl.append('} catch(__exception__) {')
 
         for c in node.handlers:
-            extend(template, indent(self.visit(c)))
+            extend(tpl, indent(self.visit(c)))
 
-        template.append('}')
-        return template
+        tpl.append('}')
+        return tpl
 
     # Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
     def visit_Try(self, node):
@@ -260,10 +260,10 @@ class JSCompiler(ast.NodeVisitor):
     # Attribute(expr value, identifier attr, expr_context ctx)
     def visit_Attribute(self, node):
         if isinstance(node.ctx, ast.Load):
-            template = '({0}.{1} || {0}.__getattr__ && {0}.__getattr__({0}, "{1}"))'
+            tpl = '({0}.{1} || {0}.__getattr__ && {0}.__getattr__({0}, "{1}"))'
         else:
-            template = '{0}.{1}'
-        return template.format(self.visit(node.value), node.attr)
+            tpl = '{0}.{1}'
+        return tpl.format(self.visit(node.value), node.attr)
 
     # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, node):
@@ -295,19 +295,19 @@ class JSCompiler(ast.NodeVisitor):
 
     # ExceptHandler(expr? type, identifier? name, stmt* body)
     def visit_ExceptHandler(self, node):
-        template = []
+        tpl = []
         if node.type:
-            template.append('if (__exception__.type == {0}'.format(node.type))
+            tpl.append('if (__exception__.type == {0}'.format(node.type))
         else:
-            template.append('if (__exception__) {')
+            tpl.append('if (__exception__) {')
 
         for c in node.body:
-            extend(template, indent(self.visit(c)))
+            extend(tpl, indent(self.visit(c)))
 
-        template.append(indent('__exception__ = undefined'))
-        template.append('}')
+        tpl.append(indent('__exception__ = undefined'))
+        tpl.append('}')
 
-        return template
+        return tpl
 
     # arg = (identifier arg, expr? annotation)
     def visit_arg(self, node):
