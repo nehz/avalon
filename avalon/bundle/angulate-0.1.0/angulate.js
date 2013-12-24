@@ -55,6 +55,11 @@
     return attr;
   }
 
+  function watch(scope, attr) {
+    var $parse = angular.injector(['ng']).get('$parse');
+    return angular.isFunction($parse(attr)(scope)) ? attr + '(this)' : attr;
+  }
+
   function equalityScope(scope) {
     // Patch $watch and $watchCollection to use object equality
     var _$watch = scope.$watch;
@@ -118,8 +123,7 @@
       }
       else {
         var display = element.css('display');
-        var bindName = angular.isFunction($parse(bind)(scope)) ?
-          bind + '(this)' : bind;
+        var bindName = watch(scope, bind);
 
         var repeat = '_value in ' + bindName + ' track by ' +
           (attrs.track || '$index');
@@ -199,8 +203,7 @@
       restrict: 'EA',
       link: function(scope, element, attrs) {
         var condition = attr(element, attrs);
-        var conditionName = angular.isFunction($parse(condition)(scope)) ?
-          condition + '(this)' : condition;
+        var conditionName = watch(scope, condition);
 
         var negate = attrs.not != undefined;
         var marker = negate ?
