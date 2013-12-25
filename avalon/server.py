@@ -163,7 +163,7 @@ def _index():
                 continue
 
             try:
-                dom = html.fromstring(t)
+                dom = html.fromstring('<head></head>' + t)
             except Exception as e:
                 _logger.error('Parse error (%s) %s', filename, e)
                 continue
