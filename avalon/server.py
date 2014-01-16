@@ -9,12 +9,6 @@
 import inspect
 import logging
 import os
-import tornado.ioloop
-import tornado.httpserver
-import tornado.web
-import tornado.wsgi
-import tornado.web
-import tornado.websocket
 
 from bottle import get, default_app, static_file
 from codecs import open
@@ -22,8 +16,12 @@ from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
 from sockjs.tornado import SockJSConnection as Endpoint
-from tornado.websocket import WebSocketHandler as WebSocket
 from tornado.escape import xhtml_unescape as unescape
+from tornado.httpserver import HTTPServer
+from tornado.ioloop import IOLoop
+from tornado.web import Application, FallbackHandler
+from tornado.websocket import WebSocketHandler as WebSocket
+from tornado.wsgi import WSGIContainer
 
 from . import client
 
@@ -269,7 +267,7 @@ def _index():
 
 @get('/bundle/<filename:re:(?!\.).+>')
 def _bundle(filename):
-    return static_file(filename, root='{0}/bundle'.format(_root_path))
+    return static_file(filename, root=os.path.join(_root_path, 'bundle'))
 
 
 @get('/<filename:re:(?!\.).+>')
@@ -281,10 +279,9 @@ def _static(filename):
 # Helpers
 #==============================================================================
 
-def serve(
-    mount_app=None, port=8080, verbose=False,
-    view_path=None, controller_path=None, cdn=True
-):
+def serve(mount_app=None, port=8080, verbose=False,
+          view_path=None, controller_path=None, cdn=True):
+
     # Chdir to app root
     root = inspect.getfile(inspect.currentframe().f_back)
     os.chdir(os.path.dirname(root) or '.')
@@ -298,15 +295,15 @@ def serve(
         _logger.setLevel(logging.INFO)
 
     if mount_app:
-        r = _routes + [(mount_app[0], tornado.web.FallbackHandler, {
-            'fallback': tornado.wsgi.WSGIContainer(mount_app[1])
+        r = _routes + [(mount_app[0], FallbackHandler, {
+            'fallback': WSGIContainer(mount_app[1])
         })]
     else:
         r = _routes
 
-    wsgi_app = tornado.wsgi.WSGIContainer(default_app())
-    app = tornado.web.Application(r + [
-        ('.*', tornado.web.FallbackHandler, {'fallback': wsgi_app})
+    wsgi_app = WSGIContainer(default_app())
+    app = Application(r + [
+        ('.*', FallbackHandler, {'fallback': wsgi_app})
     ])
 
     # Import controllers
@@ -317,6 +314,6 @@ def serve(
                 continue
             __import__('{0}.{1}'.format(dirpath, module))
 
-    server = tornado.httpserver.HTTPServer(app)
+    server = HTTPServer(app)
     server.listen(port)
-    tornado.ioloop.IOLoop.instance().start()
+    IOLoop.instance().start()
