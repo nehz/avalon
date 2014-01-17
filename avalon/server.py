@@ -12,6 +12,7 @@ import os
 
 from bottle import get, default_app, static_file
 from codecs import open
+from greenlet import greenlet as Greenlet
 from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
@@ -24,6 +25,7 @@ from tornado.websocket import WebSocketHandler as WebSocket
 from tornado.wsgi import WSGIContainer
 
 from . import client
+from .model import model
 
 
 #==============================================================================
@@ -279,7 +281,7 @@ def _static(filename):
 # Helpers
 #==============================================================================
 
-def serve(mount_app=None, port=8080, verbose=False,
+def serve(db=None, mount_app=None, port=8080, verbose=False,
           view_path=None, controller_path=None, cdn=True):
 
     # Chdir to app root
@@ -301,6 +303,10 @@ def serve(mount_app=None, port=8080, verbose=False,
     else:
         r = _routes
 
+    # Connect to db
+    if db:
+        model.connect(db)
+
     wsgi_app = WSGIContainer(default_app())
     app = Application(r + [
         ('.*', FallbackHandler, {'fallback': wsgi_app})
@@ -312,7 +318,7 @@ def serve(mount_app=None, port=8080, verbose=False,
             module, ext = os.path.splitext(f)
             if ext != '.py':
                 continue
-            __import__('{0}.{1}'.format(dirpath, module))
+            Greenlet(__import__).switch('{0}.{1}'.format(dirpath, module))
 
     server = HTTPServer(app)
     server.listen(port)
