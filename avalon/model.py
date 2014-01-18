@@ -17,48 +17,6 @@ from tornado.ioloop import PeriodicCallback
 from . import _log
 
 
-def defer(f, *args, **kwargs):
-    result = []
-    main = greenlet.getcurrent().parent
-    assert main is not None, 'Not in a child greenlet'
-
-    def callback(res, err):
-        result[:] = [res, err]
-        gr.switch(done=True)
-
-    def deferred(done=False):
-        f(callback=callback, *args, **kwargs)
-        while not main.switch():
-            pass
-
-    gr = Greenlet(deferred)
-    gr.switch()
-    res, err = result
-    if err:
-        raise err
-    return res
-
-
-def tail(f, *args, **kwargs):
-    result = []
-    gr = greenlet.getcurrent()
-    main = gr.parent
-    assert main is not None, 'Not in a child greenlet'
-
-    def iterator(have_result=False):
-        while True:
-            while not main.switch():
-                pass
-            yield result
-
-    def callback(res, err):
-        result[:] = [res, err]
-        gr.switch(have_result=True)
-
-    f(callback=callback, *args, **kwargs)
-    return iterator()
-
-
 class Store(object):
     KEEP_ALIVE_TIMEOUT = 60  # Seconds
     OPSLOG_SIZE = 1000000  # 1 MB
@@ -97,9 +55,9 @@ class Store(object):
         return self.db[collection_opslog]
 
     def _monitor(self, collection, query):
-        key = frozenset(query.items())
+        key = freeze_dict(query)
         try:
-            query = {'doc.{0}'.format(k): v for k, v in key}
+            query = {'doc.{0}'.format(k): v for k, v in query.items()}
             query['_id'] = {'$gt': ObjectId.from_datetime(datetime.utcnow())}
             opslog = self.opslog(collection)
             cursor = opslog.find(query, tailable=True, await_data=True)
@@ -125,7 +83,7 @@ class Store(object):
         Greenlet(self._monitor).switch(collection, query)
 
     def subscribe(self, request, collection, query):
-        key = frozenset(query.items())
+        key = freeze_dict(query)
         if key in self.subscriptions:
             self.subscriptions[key].add(request)
         else:
@@ -169,6 +127,54 @@ class Collection(object):
 
 class Model(object):
     pass
+
+
+def defer(f, *args, **kwargs):
+    result = []
+    main = greenlet.getcurrent().parent
+    assert main is not None, 'Not in a child greenlet'
+
+    def callback(res, err):
+        result[:] = [res, err]
+        gr.switch(done=True)
+
+    def deferred(done=False):
+        f(callback=callback, *args, **kwargs)
+        while not main.switch():
+            pass
+
+    gr = Greenlet(deferred)
+    gr.switch()
+    res, err = result
+    if err:
+        raise err
+    return res
+
+
+def tail(f, *args, **kwargs):
+    result = []
+    gr = greenlet.getcurrent()
+    main = gr.parent
+    assert main is not None, 'Not in a child greenlet'
+
+    def iterator(have_result=False):
+        while True:
+            while not main.switch():
+                pass
+            yield result
+
+    def callback(res, err):
+        result[:] = [res, err]
+        gr.switch(have_result=True)
+
+    f(callback=callback, *args, **kwargs)
+    return iterator()
+
+
+def freeze_dict(d):
+    if not isinstance(d, dict):
+        return d
+    return frozenset((k, freeze_dict(v)) for k, v in d.items())
 
 
 model = Store()
