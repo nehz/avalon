@@ -7,6 +7,7 @@
 #==============================================================================
 
 import inspect
+import json
 import logging
 import os
 
@@ -16,15 +17,15 @@ from greenlet import greenlet as Greenlet
 from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
-from sockjs.tornado import SockJSConnection as Endpoint
+from sockjs.tornado import SockJSConnection as Channel
+from tornado import gen
 from tornado.escape import xhtml_unescape as unescape
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.web import Application, FallbackHandler
-from tornado.websocket import WebSocketHandler as WebSocket
 from tornado.wsgi import WSGIContainer
 
-from . import client
+from . import client, _log
 from .model import model
 
 
@@ -33,7 +34,6 @@ from .model import model
 #==============================================================================
 
 _routes = []
-_logger = logging.getLogger('avalon')
 _root_path = os.path.dirname(__file__)
 _view_path = 'view'
 _controller_path = 'controller'
@@ -61,7 +61,8 @@ _bundle_files = [
     ),
     (
         'check(angular.module, ["ngAnimate"])',
-        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.6/angular-animate.min.js',
+        '//ajax.googleapis.com/ajax/libs/angularjs/1.2.6/'
+            'angular-animate.min.js',
         'angular-1.2.6/angular-animate.min.js'
     ),
     (
@@ -79,44 +80,26 @@ _template_handler = {
 # Decorators
 #==============================================================================
 
-def websocket(route):
+def channel(route):
     def _d(f):
-        class _WebSocket(WebSocket):
-            def open(self):
-                ip = self.request.remote_ip
-                _logger.info('OPEN {0} WebSocket ({1})'.format(route, ip))
-
-            def on_message(self, message):
-                f(message)
-
-            def on_close(self):
-                ip = self.request.remote_ip
-                _logger.info('CLOSE {0} WebSocket ({1})'.format(route, ip))
-
-        c = (route, _WebSocket)
-        _routes.append(c)
-        return c
-    return _d
-
-
-def endpoint(route):
-    def _d(f):
-        class _Endpoint(Endpoint):
+        class _Channel(Channel):
             def on_open(self, request):
                 self.request = request
                 ip = request.ip
-                _logger.info('OPEN {0} Endpoint ({1})'.format(route, ip))
+                _log.info('OPEN Channel {0} ({1})'.format(route, ip))
 
             def on_message(self, message):
-                f(message)
+                try:
+                    Greenlet(f).switch(self, message)
+                except Exception as e:
+                    _log.exception(e)
 
             def on_close(self):
                 ip = self.request.ip
-                _logger.info('CLOSE {0} Endpoint ({1})'.format(route, ip))
+                _log.info('CLOSE Channel {0} ({1})'.format(route, ip))
 
-        c = SockJSRouter(_Endpoint, route)
-        _routes.extend(c.urls)
-        return c
+        _routes.extend(SockJSRouter(_Channel, route).urls)
+        return f
     return _d
 
 
@@ -159,13 +142,13 @@ def _index():
                 t = handler(t)
 
             if not t:
-                _logger.warning('View is empty (%s)', filename)
+                _log.warning('View is empty (%s)', filename)
                 continue
 
             try:
                 dom = html.fromstring('<head></head>' + t)
             except Exception as e:
-                _logger.error('Parse error (%s) %s', filename, e)
+                _log.error('Parse error (%s) %s', filename, e)
                 continue
 
             for e in dom.getchildren():
@@ -182,7 +165,7 @@ def _index():
 
                     for name in names:
                         if name in template_names:
-                            _logger.error('Duplicate template "%s" found (%s)',
+                            _log.error('Duplicate template "%s" found (%s)',
                                           name, filename)
                             continue
 
@@ -196,7 +179,7 @@ def _index():
 
                     template_names.extend(names)
                 else:
-                    _logger.error('View is invalid (%s)', filename)
+                    _log.error('View is invalid (%s)', filename)
                     continue
 
             s = 'angulate.registerTemplate("{0}", "{1}")'
@@ -278,7 +261,7 @@ def _static(filename):
 
 
 #==============================================================================
-# Helpers
+# Functions
 #==============================================================================
 
 def serve(db=None, mount_app=None, port=8080, verbose=False,
@@ -294,7 +277,7 @@ def serve(db=None, mount_app=None, port=8080, verbose=False,
     _cdn = cdn
 
     if verbose:
-        _logger.setLevel(logging.INFO)
+        _log.setLevel(logging.INFO)
 
     if mount_app:
         r = _routes + [(mount_app[0], FallbackHandler, {

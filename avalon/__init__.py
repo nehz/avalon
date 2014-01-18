@@ -6,3 +6,5 @@
 # Licence:      Private
 #==============================================================================
 
+import logging
+_log = logging.getLogger('avalon')
