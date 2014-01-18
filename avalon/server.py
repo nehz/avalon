@@ -68,6 +68,10 @@ _bundle_files = [
     (
         'angulate',
         'angulate-0.1.0/angulate.js'
+    ),
+    (
+        'avalon',
+        'avalon.js'
     )
 ]
 _router.DEFAULT_SETTINGS['sockjs_url'] = '/bundle/sockjs-0.3.4.min.js'
@@ -107,9 +111,14 @@ def channel(route):
 # Server
 #==============================================================================
 
-@endpoint('/_avalon')
-def _server(message):
-    print(message)
+@channel('/_avalon')
+def _server(request, message):
+    message = json.loads(message)
+    method = message['method']
+    params = message['params']
+
+    if method == 'subscribe':
+        model.subscribe(request, *params)
 
 
 @get('/')
