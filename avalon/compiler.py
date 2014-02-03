@@ -90,7 +90,7 @@ class JSCompiler(ast.NodeVisitor):
     def visit_Module(self, node):
         tpl = []
         for child in node.body:
-            tpl.extend(self.visit(child) or [])
+            extend(tpl, self.visit(child))
         return '\n'.join(tpl)
 
     # Return(expr? value)
