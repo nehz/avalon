@@ -294,13 +294,14 @@ class JSCompiler(ast.NodeVisitor):
     # xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
         func = self.visit(node.func)
+        func_context = getattr(node.func, 'context', 'this')
 
         if func == 'print':
             node.values = node.args
             return self.visit_Print(node)
 
         args = ', '.join([self.visit(a) for a in node.args])
-        return '{0}({1})'.format(func, args)
+        return '{0}.apply({1}, [{2}])'.format(func, func_context, args)
 
     # Num(object n)
     def visit_Num(self, node):
@@ -316,7 +317,9 @@ class JSCompiler(ast.NodeVisitor):
             tpl = '({0}.{1} || {0}.__getattr__ && {0}.__getattr__({0}, "{1}"))'
         else:
             tpl = '{0}.{1}'
-        return tpl.format(self.visit(node.value), node.attr)
+
+        node.context = self.visit(node.value)
+        return tpl.format(node.context, node.attr)
 
     # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, node):
