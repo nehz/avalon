@@ -4,7 +4,6 @@
  * License: MIT
  */
 
-;
 (function(global) {
   'use strict';
 
@@ -27,31 +26,23 @@
   }
 
   function leave($animate, element) {
-    if (element.parent().length) {
-      $animate.leave(element);
-    }
+    if (element.parent().length) $animate.leave(element);
   }
 
   function enter($animate, element, after) {
-    if (!element.parent().length) {
-      $animate.enter(element, null, after);
-    }
+    if (!element.parent().length) $animate.enter(element, null, after);
   }
 
   function attr(element, attrs) {
     var attr;
     angular.forEach(attrs.$attr, function(a) {
       if (a[0] === ':') {
-        if (attr) {
-          exception(element, 'Element has multiple bindings');
-        }
+        if (attr) exception(element, 'Element has multiple bindings');
         attr = a.slice(1);
       }
     });
 
-    if (!attr) {
-      exception(element, 'Element has no binding attribute')
-    }
+    if (!attr) exception(element, 'Element has no binding attribute');
     return attr;
   }
 
@@ -100,10 +91,7 @@
     }
 
     function repeatScopeSearch(scope, name, level) {
-      if (!scope) {
-        return undefined;
-      }
-
+      if (!scope) return undefined;
       return scope.$item && scope.$item[name] != undefined ?
         (new Array(level + 1)).join('$parent.') + '$item.' + name :
         repeatScopeSearch(scope.$parent, name, level + 1);
@@ -116,9 +104,7 @@
 
       if (element.attr('model')) {
         // Replace this element with a clone with ng-model
-        var model = forkElement(element, 'ng-model', bind,
-          scope.$parent);
-
+        var model = forkElement(element, 'ng-model', bind, scope.$parent);
         element.replaceWith(model.element);
       }
       else {
@@ -158,9 +144,7 @@
               enter($animate, element, repeat.element);
 
               // Extend scope binding
-              if (angular.isObject(v)) {
-                angular.extend(scope, v);
-              }
+              if (angular.isObject(v)) angular.extend(scope, v);
             }
           }
         }, true);
@@ -265,7 +249,7 @@
       compile: function(element, attrs) {
         var name = attr(element, attrs);
         element.replaceWith(
-          angular.element('<script type="text/x-avalon-template">')
+          angular.element('<script type="text/x-angulate-template">')
             .html(element.html())
         );
 
@@ -290,9 +274,7 @@
       ],
       compile: function(element, attrs) {
         var name = attr(element, attrs);
-        if (!templates[name]) {
-          exception(element, 'Template not found', name);
-        }
+        if (!templates[name]) exception(element, 'Template not found', name);
         element.html(templates[name].html());
       }
     }
@@ -314,8 +296,7 @@
       if (i < 0) i += this.length;
       if (i < 0) i = 0;
       for (var n = this.length; i < n; i++) {
-        if (i in this && this[i] === find)
-          return i;
+        if (i in this && this[i] === find) return i;
       }
       return -1;
     };

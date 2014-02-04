@@ -180,7 +180,7 @@ def _index():
 
                         template = E.SCRIPT(
                             id='template-{0}'.format(name),
-                            type='text/x-avalon-template'
+                            type='text/x-angulate-template'
                         )
                         template.text = e.text
                         template.extend(e.getchildren())
