@@ -129,22 +129,25 @@ class Model(object):
     pass
 
 
-def defer(f, *args, **kwargs):
-    result = []
+def context():
+    gr = greenlet.getcurrent()
     main = greenlet.getcurrent().parent
     assert main is not None, 'Not in a child greenlet'
+    return gr, main
 
-    def callback(res, err):
-        result[:] = [res, err]
-        gr.switch(done=True)
 
-    def deferred(done=False):
-        f(callback=callback, *args, **kwargs)
-        while not main.switch():
-            pass
+def defer(f, *args, **kwargs):
+    result = []
+    gr, main = context()
 
-    gr = Greenlet(deferred)
-    gr.switch()
+    def callback(*r):
+        result[:] = r
+        gr.switch(True)
+
+    f(callback=callback, *args, **kwargs)
+    while not main.switch():
+        pass
+
     res, err = result
     if err:
         raise err
@@ -153,19 +156,17 @@ def defer(f, *args, **kwargs):
 
 def tail(f, *args, **kwargs):
     result = []
-    gr = greenlet.getcurrent()
-    main = gr.parent
-    assert main is not None, 'Not in a child greenlet'
+    gr, main = context()
 
-    def iterator(have_result=False):
+    def iterator():
         while True:
             while not main.switch():
                 pass
             yield result
 
-    def callback(res, err):
-        result[:] = [res, err]
-        gr.switch(have_result=True)
+    def callback(*r):
+        result[:] = r
+        gr.switch(True)
 
     f(callback=callback, *args, **kwargs)
     return iterator()
