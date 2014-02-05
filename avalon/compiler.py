@@ -11,7 +11,7 @@ import inspect
 import json
 import sys
 
-from . import client
+from . import client, model
 
 
 #==============================================================================
@@ -77,11 +77,12 @@ class JSCompiler(ast.NodeVisitor):
 
     def lookup(self, name):
         value = getattr(self.module, name, None)
-
         if value is None:
             return None
         elif value is client.session:
             return '_session'
+        elif value is model.model:
+            return 'avalon.model'
 
     def generic_visit(self, node):
         raise NotImplementedError(node)

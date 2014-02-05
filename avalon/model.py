@@ -5,8 +5,9 @@
 #==============================================================================
 
 import greenlet
+import hashlib
 
-from bson import ObjectId
+from bson import ObjectId, json_util as json
 from datetime import datetime
 from greenlet import greenlet as Greenlet
 from motor import MotorClient
@@ -54,7 +55,9 @@ class Store(object):
 
         return self.db[collection_opslog]
 
-    def _monitor(self, collection, query):
+    def _monitor(self, collection, query, sub_id):
+        # TODO: Handle doc removal
+        # TODO: Batch requests
         key = freeze_dict(query)
         try:
             query = {'doc.{0}'.format(k): v for k, v in query.items()}
@@ -63,14 +66,28 @@ class Store(object):
             cursor = opslog.find(query, tailable=True, await_data=True)
             item = tail(cursor.tail)
             while True:
-                doc, err = next(item)
+                ops, err = next(item)
                 if err:
                     raise err
 
-                print(doc)
+                print(ops)
+                if not ops['doc'].get('_id'):
+                    _log.warn('Opslog for collection "{0}" contains a '
+                              'document with no _id'.format(collection))
+                    continue
+
+                response = json.dumps({
+                    'response': 'subscribe',
+                    'subscription_id': sub_id,
+                    'collection': collection,
+                    'result': [ops['doc']],
+                })
+
                 for request in list(self.subscriptions[key]):
                     if request.is_closed:
                         self.subscriptions[key].remove(request)
+                        continue
+                    request.send(response)
 
                 if not self.subscriptions[key]:
                     break
@@ -79,16 +96,25 @@ class Store(object):
         finally:
             del self.subscriptions[key]
 
-    def monitor(self, collection, query):
-        Greenlet(self._monitor).switch(collection, query)
-
-    def subscribe(self, request, collection, query):
+    def subscribe(self, request, rpc_id, collection, query):
+        # TODO: Inject security policies/adapters/transforms here
         key = freeze_dict(query)
+        sub_id = hashlib.md5(str(key).encode('utf-8')).hexdigest()
+
         if key in self.subscriptions:
             self.subscriptions[key].add(request)
         else:
-            self.monitor(collection, query)
+            Greenlet(self._monitor).switch(collection, query, sub_id)
             self.subscriptions[key] = {request}
+
+        docs = defer(self.db[collection].find(query).to_list, 1000)
+        request.send(json.dumps({
+            'id': rpc_id,
+            'response': 'subscribe',
+            'subscription_id': sub_id,
+            'collection': collection,
+            'result': docs
+        }))
 
     def __getattr__(self, name):
         return Collection(model, name)

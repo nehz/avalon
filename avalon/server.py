@@ -249,6 +249,7 @@ def _index():
             'window.app = angular.module("app", ["ngAnimate", "angulate"])',
             'window.app.run(["$rootScope", function($rootScope) {',
             '  $rootScope._session = window._session',
+            '  avalon.scope = $rootScope'
             '}])',
             'angular.bootstrap(document, ["app"])'
         ]),
