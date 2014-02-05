@@ -167,7 +167,13 @@ class JSCompiler(ast.NodeVisitor):
             ]))
 
             # Constructor
-            extend(tpl, indent('$scope.__init__($scope)'))
+            extend(tpl, indent([
+                'if ($scope.__init__) {',
+                '  var __init__ = $scope.__init__',
+                '  delete $scope.__init__',
+                '  __init__($scope)',
+                '}'
+            ]))
 
         tpl.append('}')
         tpl.append('{0}.{1}.$inject = {2}'.format(
