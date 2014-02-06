@@ -123,14 +123,14 @@ class Collection(object):
         self.name = name
 
     def insert(self, **doc):
-        res = defer(self.store.db[self.name].insert, doc)
+        res = defer(self.store.db[self.name].insert, doc, w=1, j=1)
         opslog = self.store.opslog(self.name)
         defer(opslog.insert, {'op': 'insert', 'doc': doc})
         return res
 
     def remove(self, **query):
         docs = self.find(query)
-        res = defer(self.store.db[self.name].remove, query)
+        res = defer(self.store.db[self.name].remove, query, w=1, j=1)
         opslog = self.store.opslog(self.name)
         defer(opslog.insert, [{'op': 'remove', 'doc': d} for d in docs])
         return res
