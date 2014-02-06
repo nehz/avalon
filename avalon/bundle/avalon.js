@@ -11,7 +11,8 @@
 
   var avalon = globals.avalon = {version: VERSION};
   var rpc = {
-    id: 0,
+    _id: 0,
+    id: function() { return this._id = (this._id + 1) % MAX_ID; },
     response: {}
   };
 
@@ -31,10 +32,6 @@
   }
   else {
     console.log('Avalon v' + VERSION.join('.'));
-  }
-
-  function rpc_id() {
-    return rpc.id = (rpc.id + 1) % MAX_ID;
   }
 
 
