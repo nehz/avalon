@@ -55,10 +55,9 @@ class Store(object):
 
         return self.db[collection_opslog]
 
-    def _monitor(self, collection, query, sub_id):
+    def _monitor(self, collection, query_key, query):
         # TODO: Handle doc removal
         # TODO: Batch requests
-        key = freeze_dict(query)
         try:
             query = {'doc.{0}'.format(k): v for k, v in query.items()}
             query['_id'] = {'$gt': ObjectId.from_datetime(datetime.utcnow())}
@@ -78,40 +77,39 @@ class Store(object):
 
                 response = json.dumps({
                     'response': 'subscribe',
-                    'subscription_id': sub_id,
+                    'query': query_key,
                     'collection': collection,
                     'result': [ops['doc']],
                 })
 
-                for request in list(self.subscriptions[key]):
+                for request in list(self.subscriptions[query_key]):
                     if request.is_closed:
-                        self.subscriptions[key].remove(request)
+                        self.subscriptions[query_key].remove(request)
                         continue
                     request.send(response)
 
-                if not self.subscriptions[key]:
+                if not self.subscriptions[query_key]:
                     break
         except Exception as e:
             _log.exception(e)
         finally:
-            del self.subscriptions[key]
+            del self.subscriptions[query_key]
 
-    def subscribe(self, request, rpc_id, collection, query):
+    def subscribe(self, request, collection, query_key):
         # TODO: Inject security policies/adapters/transforms here
-        key = freeze_dict(query)
-        sub_id = hashlib.md5(str(key).encode('utf-8')).hexdigest()
+        # TODO: Property query key on client side
+        query = json.loads(query_key)
 
-        if key in self.subscriptions:
-            self.subscriptions[key].add(request)
+        if query_key in self.subscriptions:
+            self.subscriptions[query_key].add(request)
         else:
-            Greenlet(self._monitor).switch(collection, query, sub_id)
-            self.subscriptions[key] = {request}
+            Greenlet(self._monitor).switch(collection, query_key, query)
+            self.subscriptions[query_key] = {request}
 
         docs = defer(self.db[collection].find(query).to_list, 1000)
         request.send(json.dumps({
-            'id': rpc_id,
             'response': 'subscribe',
-            'subscription_id': sub_id,
+            'query': query_key,
             'collection': collection,
             'result': docs
         }))
@@ -196,12 +194,6 @@ def tail(f, *args, **kwargs):
 
     f(callback=callback, *args, **kwargs)
     return iterator()
-
-
-def freeze_dict(d):
-    if not isinstance(d, dict):
-        return d
-    return frozenset((k, freeze_dict(v)) for k, v in d.items())
 
 
 model = Store()

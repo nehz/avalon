@@ -52,22 +52,10 @@
       switch(data.response) {
         case 'subscribe':
           var collection = avalon.model[data.collection] || {};
-          if (data.id && collection.subscriptions) {
-            var subscription = collection.subscriptions[data.id];
-            if (!subscription) {
-              console.warn('Cannot find response id: ' + data.id);
-            }
-            else if (data.id !== data.subscription_id) {
-              delete collection.subscriptions[data.id];
-              collection.subscriptions[data.subscription_id] = subscription;
-              collection.queries[subscription.query] = data.subscription_id;
-            }
-          }
-
-          var subscription = collection.subscriptions[data.subscription_id];
+          var subscription = collection.subscriptions[data.query];
           if (!subscription) {
             console.error('Not subscribed to collection: ' +
-              data.collection + ' subscription: ' + data.subscription_id);
+              data.collection + ' query: ' + data.query);
             return;
           }
 
@@ -131,7 +119,7 @@
 
           this.send(JSON.stringify({
             method: 'subscribe',
-            params: [sub_id, collection, JSON.parse(subscription.query)]
+            params: [collection, subscription.query]
           }));
 
           subscription.state = 'PENDING';
@@ -151,20 +139,17 @@
   var Collection = function Collection(collection) {
     this.collection = collection;
     this.subscriptions = {};
-    this.queries = {};
   };
 
   Collection.prototype.subscribe = function subscribe(query) {
     var subscriptions = avalon.model[this.collection].subscriptions;
-    var queries = avalon.model[this.collection].queries;
 
     query = JSON.stringify(query || {});
-    if (queries[query]) return subscriptions[query[queries]];
+    if (subscriptions[query]) return subscriptions[query];
 
     var result = [];
-    var id = rpc_id();
     result.index = {};
-    subscriptions[id] = {
+    subscriptions[query] = {
       result: result,
       query: query,
       state: 'CLOSED'
