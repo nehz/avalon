@@ -390,7 +390,7 @@ class JSCompiler(ast.NodeVisitor):
 def indent(lines, spaces=2, level=1):
     spaces = ' ' * (spaces * level)
     if isinstance(lines, list):
-        return  ['{0}{1}'.format(spaces, l) for l in lines]
+        return ['{0}{1}'.format(spaces, l) for l in lines]
     else:
         return '{0}{1}'.format(spaces, lines)
 

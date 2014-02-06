@@ -18,7 +18,6 @@ from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
 from sockjs.tornado import SockJSConnection as Channel
-from tornado import gen
 from tornado.escape import xhtml_unescape as unescape
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
