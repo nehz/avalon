@@ -59,7 +59,7 @@
       }
       pairs.sort(function(a, b) { return a[0] < b[0] ? -1 : 1 });
       pairs = map.call(pairs, function(v) { return '"' + v[0] + '":' + v[1] });
-      return '{' + pairs.join(',') + '}';
+      return '{' + pairs + '}';
     }
 
     if (type === '[object Array]') {
