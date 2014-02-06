@@ -97,7 +97,6 @@ class Store(object):
 
     def subscribe(self, request, collection, query_key):
         # TODO: Inject security policies/adapters/transforms here
-        # TODO: Property query key on client side
         query = json.loads(query_key)
 
         if query_key in self.subscriptions:

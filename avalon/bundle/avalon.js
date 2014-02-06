@@ -34,6 +34,41 @@
     console.log('Avalon v' + VERSION.join('.'));
   }
 
+  /**
+   * Deterministic JSON stringify
+   * @param {object} obj
+   * @returns {string}
+   */
+  avalon.stringify = function stringify(obj) {
+    var type = Object.prototype.toString.call(obj);
+
+    // IE8 <= 8 does not have array map
+    var map = Array.prototype.map || function map(callback) {
+      var ret = [];
+      for (var i = 0; i < this.length; i++) {
+        ret.push(callback(this[i]));
+      }
+      return ret;
+    };
+
+    if (type === '[object Object]') {
+      var pairs = [];
+      for (var k in obj) {
+        if (!obj.hasOwnProperty(k)) continue;
+        pairs.push([k, stringify(obj[k])]);
+      }
+      pairs.sort(function(a, b) { return a[0] < b[0] ? -1 : 1 });
+      pairs = map.call(pairs, function(v) {return '"' + v[0] + '":' + v[1]});
+      return '{' + pairs.join(',') + '}';
+    }
+
+    if (type === '[object Array]') {
+      return '[' + map.call(obj, function(v) { return stringify(v) }) + ']';
+    }
+
+    return JSON.stringify(obj);
+  };
+
 
   (function connect() {
     var channel = avalon.channel = new SockJS('/_avalon');
@@ -141,7 +176,9 @@
   Collection.prototype.subscribe = function subscribe(query) {
     var subscriptions = avalon.model[this.collection].subscriptions;
 
-    query = JSON.stringify(query || {});
+    // Use deterministic stringify because we want the same query
+    // to map to the same subscription result set
+    query = avalon.stringify(query || {});
     if (subscriptions[query]) return subscriptions[query];
 
     var result = [];
