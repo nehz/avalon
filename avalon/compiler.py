@@ -191,10 +191,10 @@ class JSCompiler(ast.NodeVisitor):
         context = getattr(node, 'context', None)
 
         def assign(target, value):
-            if context:
-                return '{0}.{1} = {2}'.format(context, target, value)
-            elif '.' in target or '[' in target:
+            if '.' in target or '[' in target:
                 return '{0} = {1}'.format(target, value)
+            elif context:
+                return '{0}.{1} = {2}'.format(context, target, value)
             else:
                 return 'var {0} = {1}'.format(target, value)
 
