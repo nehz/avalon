@@ -97,9 +97,9 @@ class JSCompiler(ast.NodeVisitor):
     # Return(expr? value)
     def visit_Return(self, node):
         if node.value:
-            return 'return {0}'.format(self.visit(node.value))
+            return 'return {0};'.format(self.visit(node.value))
         else:
-            return 'return'
+            return 'return;'
 
     # FunctionDef(identifier name, arguments args,
     # stmt* body, expr* decorator_list)
@@ -109,7 +109,7 @@ class JSCompiler(ast.NodeVisitor):
 
         tpl = [
             '{0}.{1} = function {1}({2}) {{'.format(context, node.name, args),
-            '  var $ctx = {next_state: 0, local: {}, ctx: this}',
+            '  var $ctx = {next_state: 0, local: {}, ctx: this};',
             '  $ctx.func = function($ctx) {',
             '    while (true) switch($ctx.next_state) {',
             '      case 0:'
@@ -122,10 +122,10 @@ class JSCompiler(ast.NodeVisitor):
             extend(tpl, indent(self.visit(c), level=3))
 
         extend(tpl, [
-            '      default: return',
+            '      default: return;',
             '    }',
             '  }',
-            '  return $ctx.func.call(this, $ctx)',
+            '  return $ctx.func.call(this, $ctx);',
             '}'
         ])
         return tpl
@@ -159,42 +159,44 @@ class JSCompiler(ast.NodeVisitor):
             # Events
             tpl_on = '\n'.join(indent([
                 '$element.on("{0}", "{1}", function eventHandler(e) {{',
-                '  var t = angular.element(e.target).scope()',
-                '  $scope.$apply(function() {{ $scope.{2}($scope, t, e) }})',
+                '  var t = angular.element(e.target).scope();',
+                '  $scope.$apply(function() {{ $scope.{2}($scope, t, e) }});',
                 '}})'
             ]))
 
             extend(tpl, [tpl_on.format(*e) for e in scope['events']])
             extend(tpl, indent([
                 '$scope.$on("$destroy", function() {',
-                '  $element.off()',
+                '  $element.off();',
                 '})'
             ]))
 
             # Support repeat scope
             extend(tpl, indent([
-                'var $getattr = $scope.__getattr__',
+                'var $getattr = $scope.__getattr__;',
                 '$scope.__getattr__ = function __getattr__(self, value) {',
                 '  return self.$item && self.$item[value] ||',
-                '    $getattr && $getattr(self, value)',
+                '    $getattr && $getattr(self, value);',
                 '}'
             ]))
 
             # Constructor
             extend(tpl, indent([
                 'if ($scope.__init__) {',
-                '  var __init__ = $scope.__init__',
-                '  delete $scope.__init__',
-                '  __init__($scope)',
+                '  var __init__ = $scope.__init__;',
+                '  delete $scope.__init__;',
+                '  __init__($scope);',
                 '}'
             ]))
 
-        tpl.append('}')
-        tpl.append('{0}.{1}.$inject = {2}'.format(
-            context, class_name, json.dumps(inject)))
+        extend(tpl, [
+            '};',
+            '{0}.{1}.$inject = {2};'.format(
+                context, class_name, json.dumps(inject))
+        ])
 
         if not scope and node.bases:
-            tpl.append('{0}.{1}.prototype = new {2}()'.format(
+            tpl.append('{0}.{1}.prototype = new {2}();'.format(
                 context, node.name, self.visit(node.bases[0])))
 
         return tpl
@@ -210,9 +212,9 @@ class JSCompiler(ast.NodeVisitor):
             if getattr(node, 'yield_point', None):
                 node.value.yield_point = node.yield_point
             extend(tpl, self.visit(node.value))
-            extend(tpl, 'var $assign = $ctx.send')
+            extend(tpl, 'var $assign = $ctx.send;')
         else:
-            extend(tpl, 'var $assign = {0}'.format(self.visit(node.value)))
+            extend(tpl, 'var $assign = {0};'.format(self.visit(node.value)))
 
         for target in node.targets:
             if type(target) is ast.Tuple:
@@ -220,14 +222,14 @@ class JSCompiler(ast.NodeVisitor):
                     t.context = context
                     t = self.visit(t)
                     if not context:
-                        tpl.append('var {0} = $assign[{1}]'.format(t, i))
-                    tpl.append('{0} = $assign[{1}]'.format(t, i))
+                        tpl.append('var {0} = $assign[{1}];'.format(t, i))
+                    tpl.append('{0} = $assign[{1}];'.format(t, i))
             else:
                 target.context = context
                 target = self.visit(target)
                 if not context:
-                    tpl.append('var {0} = $assign'.format(target))
-                tpl.append('{0} = $assign'.format(target))
+                    tpl.append('var {0} = $assign;'.format(target))
+                tpl.append('{0} = $assign;'.format(target))
 
         return tpl
 
@@ -237,8 +239,8 @@ class JSCompiler(ast.NodeVisitor):
         op = JSCompiler.BIN_OP[type(node.op)]
         value = self.visit(node.value)
         if getattr(node, 'context', None):
-            return '{0}.{1} {2}= {3}'.format(node.context, target, op, value)
-        return '{0} {1}= {2}'.format(target, op, value)
+            return '{0}.{1} {2}= {3};'.format(node.context, target, op, value)
+        return '{0} {1}= {2};'.format(target, op, value)
 
     # For(expr target, expr iter, stmt* body, stmt* orelse)
     def visit_For(self, node):
@@ -262,10 +264,10 @@ class JSCompiler(ast.NodeVisitor):
         # TODO: Check StopIteration exception
         extend(tpl, [
             'case {0}:'.format(loop_point),
-            'try {{ $ctx.local.{0} = $ctx.local.iter.next() }}'.format(
+            'try {{ $ctx.local.{0} = $ctx.local.iter.next(); }}'.format(
                 self.visit(node.target)),
             'catch($exception) {',
-            '  $ctx.next_state = {0}; continue '.format(break_point),
+            '  $ctx.next_state = {0}; continue; '.format(break_point),
             '}'
         ])
 
@@ -284,7 +286,7 @@ class JSCompiler(ast.NodeVisitor):
 
     # Print(expr? dest, expr* values, bool nl)
     def visit_Print(self, node):
-        return 'console.log({0})'.format(
+        return 'console.log({0});'.format(
             ', '.join([self.visit(v) for v in node.values]))
 
     # If(expr test, stmt* body, stmt* orelse)
@@ -321,12 +323,12 @@ class JSCompiler(ast.NodeVisitor):
                 extend(tpl, [
                     'try {{ {0} }}'.format(self.visit(c)),
                     'catch($exception) {',
-                    '  $ctx.next_state = {0}; continue'.format(except_point),
+                    '  $ctx.next_state = {0}; continue;'.format(except_point),
                     '}'
                 ])
 
         extend(tpl, [
-            '$ctx.next_state = {0}; continue'.format(continue_point),
+            '$ctx.next_state = {0}; continue;'.format(continue_point),
             'case {0}:'.format(except_point)
         ])
 
@@ -386,17 +388,17 @@ class JSCompiler(ast.NodeVisitor):
 
         node.yield_point[0] += 1
         body = [
-            'var $tmp = {0}'.format(self.visit(node.value)),
-            '$ctx.next_state = {0}'.format(node.yield_point[0]),
-            '$ctx.yield = $tmp',
-            'return $ctx'
+            'var $tmp = {0};'.format(self.visit(node.value)),
+            '$ctx.next_state = {0};'.format(node.yield_point[0]),
+            '$ctx.yield = $tmp;',
+            'return $ctx;'
         ]
 
         if except_point is not None:
             extend(tpl, indent(body))
             extend(tpl, (
                 '} catch ($exception) {',
-                '  $ctx.next_state = {0}; continue '.format(except_point),
+                '  $ctx.next_state = {0}; continue;'.format(except_point),
                 '}'
             ))
         else:
