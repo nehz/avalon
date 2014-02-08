@@ -27,10 +27,10 @@ class Store(object):
         self.db = None
         self.subscriptions = {}
 
-    def connect(self, uri, db=None, **options):
+    def connect(self, uri, db=None, w=1, j=True, **options):
         io_loop = options.get('io_loop', None)
 
-        self.client = MotorClient(uri, **options).open_sync()
+        self.client = MotorClient(uri, w=w, j=j, **options).open_sync()
         self.client_sync = self.client.sync_client()
 
         db = db or uri_parser.parse_uri(uri)['database']
@@ -123,14 +123,14 @@ class Collection(object):
         self.name = name
 
     def insert(self, **doc):
-        res = defer(self.store.db[self.name].insert, doc, w=1, j=1)
+        defer(self.store.db[self.name].insert, doc)
         opslog = self.store.opslog(self.name)
         defer(opslog.insert, {'op': 'insert', 'doc': doc})
         return res
 
     def remove(self, **query):
         docs = self.find(query)
-        res = defer(self.store.db[self.name].remove, query, w=1, j=1)
+        res = defer(self.store.db[self.name].remove, query)
         opslog = self.store.opslog(self.name)
         defer(opslog.insert, [{'op': 'remove', 'doc': d} for d in docs])
         return res
