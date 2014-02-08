@@ -106,15 +106,28 @@ class JSCompiler(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         context = getattr(node, 'context', 'this')
         args = ', '.join([self.visit(a) for a in node.args.args])
+
         tpl = [
-            '{0}.{1} = function {1}({2}) {{'.format(
-                context, node.name, args)
+            '{0}.{1} = function {1}({2}) {{'.format(context, node.name, args),
+            '  var $ctx = {next_state: 0, local: {}, ctx: this}',
+            '  $ctx.func = function($ctx) {',
+            '    while (true) switch($ctx.next_state) {',
+            '      case 0:'
         ]
 
+        yield_point = [0]
         for c in node.body:
-            extend(tpl, indent(self.visit(c)))
+            c.context = '$ctx.local'
+            c.yield_point = yield_point
+            extend(tpl, indent(self.visit(c), level=3))
 
-        tpl.append('}')
+        extend(tpl, [
+            '      default: return',
+            '    }',
+            '  }',
+            '  return $ctx.func.call(this, $ctx)',
+            '}'
+        ])
         return tpl
 
     #ClassDef(identifier name, expr* bases, stmt* body, expr* decorator_list)
@@ -160,10 +173,10 @@ class JSCompiler(ast.NodeVisitor):
 
             # Support repeat scope
             extend(tpl, indent([
-                'var _getattr = $scope.__getattr__',
+                'var $getattr = $scope.__getattr__',
                 '$scope.__getattr__ = function __getattr__(self, value) {',
                 '  return self.$item && self.$item[value] ||',
-                '    _getattr && _getattr(self, value)',
+                '    $getattr && $getattr(self, value)',
                 '}'
             ]))
 
@@ -190,26 +203,31 @@ class JSCompiler(ast.NodeVisitor):
     def visit_Assign(self, node):
         context = getattr(node, 'context', None)
 
-        def assign(target, value):
-            if '.' in target or '[' in target:
-                return '{0} = {1}'.format(target, value)
-            elif context:
-                return '{0}.{1} = {2}'.format(context, target, value)
-            else:
-                return 'var {0} = {1}'.format(target, value)
-
         tpl = []
+        node.value.context = context
+
+        if type(node.value) is ast.Yield:
+            if getattr(node, 'yield_point', None):
+                node.value.yield_point = node.yield_point
+            extend(tpl, self.visit(node.value))
+            extend(tpl, 'var $assign = $ctx.send')
+        else:
+            extend(tpl, 'var $assign = {0}'.format(self.visit(node.value)))
+
         for target in node.targets:
             if type(target) is ast.Tuple:
-                stmt = 'var _assign = {0}'.format(self.visit(node.value))
-                tpl.append(stmt)
-
                 for i, t in enumerate(target.elts):
-                    v = '_assign[{0}]'.format(i)
-                    tpl.append(assign(self.visit(t), v))
+                    t.context = context
+                    t = self.visit(t)
+                    if not context:
+                        tpl.append('var {0} = $assign[{1}]'.format(t, i))
+                    tpl.append('{0} = $assign[{1}]'.format(t, i))
             else:
-                stmt = assign(self.visit(target), self.visit(node.value))
-                tpl.append(stmt)
+                target.context = context
+                target = self.visit(target)
+                if not context:
+                    tpl.append('var {0} = $assign'.format(target))
+                tpl.append('{0} = $assign'.format(target))
 
         return tpl
 
@@ -218,7 +236,51 @@ class JSCompiler(ast.NodeVisitor):
         target = self.visit(node.target)
         op = JSCompiler.BIN_OP[type(node.op)]
         value = self.visit(node.value)
+        if getattr(node, 'context', None):
+            return '{0}.{1} {2}= {3}'.format(node.context, target, op, value)
         return '{0} {1}= {2}'.format(target, op, value)
+
+    # For(expr target, expr iter, stmt* body, stmt* orelse)
+    def visit_For(self, node):
+        if node.orelse:
+            raise NotImplementedError('For else statement not supported')
+        if not hasattr(node, 'yield_point'):
+            raise SyntaxError('For statement not inside a function block')
+
+        tpl = []
+        node.yield_point[0] += 1
+        loop_point = node.yield_point[0]
+        node.yield_point[0] += 1
+        break_point = node.yield_point[0]
+        node.iter.yield_point = node.yield_point
+
+        target_node = ast.Name('iter', None)
+        assign_node = ast.Assign([target_node], node.iter)
+        assign_node.context = '$ctx.local'
+        extend(tpl, self.visit_Assign(assign_node))
+
+        # TODO: Check StopIteration exception
+        extend(tpl, [
+            'case {0}:'.format(loop_point),
+            'try {{ $ctx.local.{0} = $ctx.local.iter.next() }}'.format(
+                self.visit(node.target)),
+            'catch($exception) {',
+            '  $ctx.next_state = {0}; continue '.format(break_point),
+            '}'
+        ])
+
+        for c in node.body:
+            c.context = '$ctx.local'
+            c.yield_point = node.yield_point
+            extend(tpl, self.visit(c))
+
+        tpl.extend([
+            '$ctx.next_state = {0}; continue'.format(loop_point),
+            'case {0}:'.format(break_point)
+        ])
+        return tpl
+
+    # While(expr test, stmt* body, stmt* orelse)
 
     # Print(expr? dest, expr* values, bool nl)
     def visit_Print(self, node):
@@ -242,17 +304,36 @@ class JSCompiler(ast.NodeVisitor):
 
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
-        tpl = ['try {']
+        tpl = []
+
+        if not hasattr(node, 'yield_point'):
+            raise SyntaxError('Try block not inside a function block')
+
+        node.yield_point[0] += 1
+        except_point = node.yield_point[0]
+        node.yield_point[0] += 1
+        continue_point = node.yield_point[0]
 
         for c in node.body:
-            extend(tpl, indent(self.visit(c)))
+            if type(c) is ast.Yield:
+                extend(tpl, self.visit_Yield(c, except_point=except_point)),
+            else:
+                extend(tpl, [
+                    'try {{ {0} }}'.format(self.visit(c)),
+                    'catch($exception) {',
+                    '  $ctx.next_state = {0}; continue'.format(except_point),
+                    '}'
+                ])
 
-        tpl.append('} catch(__exception__) {')
+        extend(tpl, [
+            '$ctx.next_state = {0}; continue'.format(continue_point),
+            'case {0}:'.format(except_point)
+        ])
 
         for c in node.handlers:
-            extend(tpl, indent(self.visit(c)))
+            extend(tpl, self.visit(c))
 
-        tpl.append('}')
+        tpl.append('case {0}:'.format(continue_point))
         return tpl
 
     # Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
@@ -261,6 +342,10 @@ class JSCompiler(ast.NodeVisitor):
 
     # Expr(expr value)
     def visit_Expr(self, node):
+        if hasattr(node, 'context'):
+            node.value.context = node.context
+        if hasattr(node, 'yield_point'):
+            node.value.yield_point = node.yield_point
         return self.visit(node.value)
 
     # Pass
@@ -286,6 +371,39 @@ class JSCompiler(ast.NodeVisitor):
             '{0}: {1}'.format(self.visit(kv[0]), self.visit(kv[1]))
             for kv in zip(node.keys, node.values)
         ]))
+
+    # Yield(expr? value)
+    def visit_Yield(self, node, except_point=None):
+        if not getattr(node, 'yield_point', None):
+            raise SyntaxError('Yield not inside a function block')
+
+        if hasattr(node, 'context'):
+            node.value.context = node.context
+
+        tpl = []
+        if except_point is not None:
+            tpl = ['try {']
+
+        node.yield_point[0] += 1
+        body = [
+            'var $tmp = {0}'.format(self.visit(node.value)),
+            '$ctx.next_state = {0}'.format(node.yield_point[0]),
+            '$ctx.yield = $tmp',
+            'return $ctx'
+        ]
+
+        if except_point is not None:
+            extend(tpl, indent(body))
+            extend(tpl, (
+                '} catch ($exception) {',
+                '  $ctx.next_state = {0}; continue '.format(except_point),
+                '}'
+            ))
+        else:
+            extend(tpl, body)
+
+        extend(tpl, 'case {0}:'.format(node.yield_point[0]))
+        return tpl
 
     #Compare(expr left, cmpop* ops, expr* comparators)
     def visit_Compare(self, node):
@@ -348,7 +466,11 @@ class JSCompiler(ast.NodeVisitor):
             return 'true'
         elif node.id == 'False':
             return 'false'
-        return str(node.id)
+
+        if getattr(node, 'context', None):
+            return '{0}.{1}'.format(node.context, node.id)
+        else:
+            return node.id
 
     # List(expr* elts, expr_context ctx)
     def visit_List(self, node):
