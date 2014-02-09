@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
-# Name:         compiler
-# Description:  Python to Javascript compiler
 # Copyright:    Hybrid Labs
 # Licence:      Private
 #==============================================================================
@@ -11,12 +9,8 @@ import inspect
 import json
 import sys
 
-from . import client, model
+from .. import client, model
 
-
-#==============================================================================
-# JSCompiler
-#==============================================================================
 
 class JSEnv(object):
     def __getitem__(self, item):
@@ -506,10 +500,6 @@ class JSCompiler(ast.NodeVisitor):
     def visit_arg(self, node):
         return str(node.arg)
 
-
-#==============================================================================
-# Helpers
-#==============================================================================
 
 def indent(lines, spaces=2, level=1):
     spaces = ' ' * (spaces * level)
