@@ -75,11 +75,16 @@ class Store(object):
                               'document with no _id'.format(collection))
                     continue
 
+                if ops['op'] == 'insert':
+                    doc = ops['doc']
+                elif ops['op'] == 'update':
+                    doc = ops['updated']
+
                 response = json.dumps({
                     'response': 'subscribe',
                     'query': query_key,
                     'collection': collection,
-                    'result': [ops['doc']],
+                    'result': [doc],
                 })
 
                 for request in list(self.subscriptions[query_key]):
@@ -114,6 +119,9 @@ class Store(object):
         }))
 
     def __getattr__(self, name):
+        return self[name]
+
+    def __getitem__(self, name):
         return Collection(model, name)
 
 
@@ -125,8 +133,24 @@ class Collection(object):
     def insert(self, **doc):
         defer(self.store.db[self.name].insert, doc)
         opslog = self.store.opslog(self.name)
-        defer(opslog.insert, {'op': 'insert', 'doc': doc})
-        return res
+        defer(opslog.insert, {'op': 'insert', 'doc': doc}, manipulate=False)
+
+    def update(self, _id=None, query=None, **ops):
+        if not ops:
+            return
+        query = query or _id and {'_id': ObjectId(_id)}
+        docs = defer(self.store.db[self.name].find(query).to_list)
+        updated = {}
+        for d in docs:
+            res = defer(self.store.db[self.name].find_and_modify,
+                        query, ops, new=True)
+            updated[d['_id']] = res
+
+        opslog = self.store.opslog(self.name)
+        defer(opslog.insert, [
+            {'op': 'update', 'doc': d, 'updated': updated[d['_id']]}
+            for d in docs if updated[d['_id']]
+        ], manipulate=False)
 
     def remove(self, **query):
         docs = self.find(query)

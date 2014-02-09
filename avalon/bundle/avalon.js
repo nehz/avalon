@@ -124,7 +124,7 @@
       console.error('Channel connection lost, reconnecting...');
       window.setTimeout(function() {
         connect();
-      });
+      }, 1000);
 
       for (var collection in avalon.model) {
         if (!avalon.model.hasOwnProperty(collection)) continue;
@@ -159,11 +159,24 @@
             window.setTimeout(function pending() {
               if (subscription.state === 'OPEN') return;
               subscription.state = 'CLOSED';
-              channel.subscribe();
-            }, 10000);
+              avalon.channel.subscribe();
+            }, 1000);
           })(subscription);
         }
       }
+    };
+
+    channel._send = channel.send;
+    channel.send = function send(data) {
+      // Use `avalon.channel` rather than `this` because we always want to
+      // refer to the currently active channel
+      (function() {
+        if (avalon.channel.readyState === SockJS.OPEN) {
+          avalon.channel._send(data);
+          return
+        }
+        window.setTimeout(send, 1000);
+      })();
     };
   })();
 
@@ -191,6 +204,17 @@
 
     avalon.channel.subscribe();
     return result;
+  };
+
+  Collection.prototype.update = function update(obj, operations) {
+    if (!obj._id) {
+      console.error('Object has no _id', obj);
+      return;
+    }
+    avalon.channel.send(JSON.stringify({
+      method: 'update',
+      params: [this.collection, {_id: obj._id}, operations || {}]
+    }))
   };
 
   var Store = function Store() {};

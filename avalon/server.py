@@ -7,11 +7,11 @@
 #==============================================================================
 
 import inspect
-import json
 import logging
 import os
 
 from bottle import get, default_app, static_file
+from bson import json_util as json
 from codecs import open
 from greenlet import greenlet as Greenlet
 from lxml import html
@@ -118,6 +118,9 @@ def _server(request, message):
 
     if method == 'subscribe':
         model.subscribe(request, *params)
+
+    if method == 'update':
+        model[params[0]].update(query=params[1], **params[2])
 
 
 @get('/')
