@@ -44,11 +44,6 @@ _bundle_files = [
         'sockjs-0.3.4.min.js'
     ),
     (
-        'JSON',
-        '//cdnjs.cloudflare.com/ajax/libs/json3/3.2.6/json3.min.js',
-        'json3-3.2.6.min.js'
-    ),
-    (
         'jQuery',
         '//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js',
         'jquery-1.10.2/jquery.min.js'
