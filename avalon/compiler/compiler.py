@@ -18,6 +18,15 @@ class JSCode(object):
         pass
 
 
+class YieldPoint(object):
+    def __init__(self):
+        self.count = 0
+
+    def create(self):
+        self.count += 1
+        return self.count
+
+
 class JSCompiler(ast.NodeVisitor):
     BOOL_OP = {
         ast.And: '&&',
@@ -63,8 +72,15 @@ class JSCompiler(ast.NodeVisitor):
         else:
             self.module = sys.modules.get(getattr(obj, '__module__', None))
 
-    def visit(self, node):
+    def visit(self, node, context=None, inherit=True):
         node.parent = self.node_chain[-1]
+        node.context = getattr(node, 'context', context)
+        if inherit and node.parent:
+            node.yield_point = getattr(node.parent, 'yield_point', None)
+            node.loop_point = getattr(node.parent, 'loop_point', None)
+            node.break_point = getattr(node.parent, 'break_point', None)
+            node.context = node.context or node.parent.context
+
         self.node_chain.append(node)
         ret = super(JSCompiler, self).visit(node)
         self.node_chain.pop()
@@ -78,6 +94,7 @@ class JSCompiler(ast.NodeVisitor):
             return '_session'
         elif value is model.model:
             return 'avalon.model'
+        return name
 
     def generic_visit(self, node):
         raise NotImplementedError(node)
@@ -99,22 +116,23 @@ class JSCompiler(ast.NodeVisitor):
     # FunctionDef(
     #   identifier name, arguments args, stmt* body, expr* decorator_list)
     def visit_FunctionDef(self, node):
-        context = getattr(node, 'context', 'this')
-        args = ', '.join([self.visit(a) for a in node.args.args])
+        context = node.context or 'this'
+        args = [self.visit(a, inherit=False) for a in node.args.args]
+        local = ', '.join(['{0}: {0}'.format(a) for a in args])
+        args = ', '.join(args)
 
         tpl = [
             '{0}.{1} = function {1}({2}) {{'.format(context, node.name, args),
-            '  var $ctx = {next_state: 0, local: {}, ctx: this};',
+            '  var $ctx = {next_state: 0, ctx: this};',
+            '  $ctx.local = {{{0}}};'.format(local),
             '  $ctx.func = function($ctx) {',
             '    while (true) switch($ctx.next_state) {',
             '      case 0:'
         ]
 
-        yield_point = [0]
+        node.yield_point = YieldPoint()
         for c in node.body:
-            c.context = '$ctx.local'
-            c.yield_point = yield_point
-            extend(tpl, indent(self.visit(c), level=3))
+            extend(tpl, indent(self.visit(c, '$ctx.local'), level=3))
 
         extend(tpl, [
             '      default: return;',
@@ -131,7 +149,7 @@ class JSCompiler(ast.NodeVisitor):
             raise NotImplementedError('Multiple inheritance not supported')
 
         tpl = []
-        context = getattr(node, 'context', 'this')
+        context = node.context or 'this'
 
         if node.bases:
             scope_name = node.bases[0].attr
@@ -146,9 +164,7 @@ class JSCompiler(ast.NodeVisitor):
             context, class_name, node.name, ', '.join(inject)))
 
         for c in node.body:
-            if scope:
-                c.context = '$scope'
-            extend(tpl, indent(self.visit(c)))
+            extend(tpl, indent(self.visit(c, '$scope' if scope else None)))
 
         if scope:
             # Events
@@ -198,10 +214,8 @@ class JSCompiler(ast.NodeVisitor):
 
     # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
-        context = getattr(node, 'context', None)
-
         tpl = []
-        node.value.context = context
+        context = getattr(node, 'context', None)
 
         if type(node.value) is ast.Yield:
             if getattr(node, 'yield_point', None):
@@ -214,13 +228,11 @@ class JSCompiler(ast.NodeVisitor):
         for target in node.targets:
             if type(target) is ast.Tuple:
                 for i, t in enumerate(target.elts):
-                    t.context = context
                     t = self.visit(t)
                     if not context:
                         tpl.append('var {0} = $assign[{1}];'.format(t, i))
                     tpl.append('{0} = $assign[{1}];'.format(t, i))
             else:
-                target.context = context
                 target = self.visit(target)
                 if not context:
                     tpl.append('var {0} = $assign;'.format(target))
@@ -233,8 +245,6 @@ class JSCompiler(ast.NodeVisitor):
         target = self.visit(node.target)
         op = JSCompiler.BIN_OP[type(node.op)]
         value = self.visit(node.value)
-        if getattr(node, 'context', None):
-            return '{0}.{1} {2}= {3};'.format(node.context, target, op, value)
         return '{0} {1}= {2};'.format(target, op, value)
 
     # For(expr target, expr iter, stmt* body, stmt* orelse)
@@ -245,11 +255,8 @@ class JSCompiler(ast.NodeVisitor):
             raise SyntaxError('For statement not inside a function block')
 
         tpl = []
-        node.yield_point[0] += 1
-        loop_point = node.yield_point[0]
-        node.yield_point[0] += 1
-        break_point = node.yield_point[0]
-        node.iter.yield_point = node.yield_point
+        loop_point = node.yield_point.create()
+        break_point = node.yield_point.create()
 
         target_node = ast.Name('iter', None)
         assign_node = ast.Assign([target_node], node.iter)
@@ -267,17 +274,40 @@ class JSCompiler(ast.NodeVisitor):
         ])
 
         for c in node.body:
-            c.context = '$ctx.local'
-            c.yield_point = node.yield_point
-            extend(tpl, self.visit(c))
+            extend(tpl, self.visit(c, '$ctx.local'))
 
-        tpl.extend([
-            '$ctx.next_state = {0}; continue'.format(loop_point),
+        extend(tpl, [
+            '$ctx.next_state = {0}; continue;'.format(loop_point),
             'case {0}:'.format(break_point)
         ])
         return tpl
 
     # While(expr test, stmt* body, stmt* orelse)
+    def visit_While(self, node):
+        if node.orelse:
+            raise NotImplementedError('While else statement not supported')
+        if not hasattr(node, 'yield_point'):
+            raise SyntaxError('While statement not inside a function block')
+
+        tpl = []
+        loop_point = node.yield_point.create()
+        break_point = node.yield_point.create()
+
+        extend(tpl, [
+            'case {0}:'.format(loop_point),
+            'if (!({0})) {{'.format(self.visit(node.test)),
+            '  $ctx.next_state = {0}; continue;'.format(break_point),
+            '}'
+        ])
+
+        for c in node.body:
+            extend(tpl, self.visit(c, '$ctx.local'))
+
+        extend(tpl, [
+            '$ctx.next_state = {0}; continue;'.format(loop_point),
+            'case {0}:'.format(break_point)
+        ])
+        return tpl
 
     # Print(expr? dest, expr* values, bool nl)
     def visit_Print(self, node):
@@ -306,10 +336,8 @@ class JSCompiler(ast.NodeVisitor):
         if not hasattr(node, 'yield_point'):
             raise SyntaxError('Try block not inside a function block')
 
-        node.yield_point[0] += 1
-        except_point = node.yield_point[0]
-        node.yield_point[0] += 1
-        continue_point = node.yield_point[0]
+        except_point = node.yield_point.create()
+        continue_point = node.yield_point.create()
 
         for c in node.body:
             if type(c) is ast.Yield:
@@ -347,15 +375,16 @@ class JSCompiler(ast.NodeVisitor):
 
     # Expr(expr value)
     def visit_Expr(self, node):
-        if hasattr(node, 'context'):
-            node.value.context = node.context
-        if hasattr(node, 'yield_point'):
-            node.value.yield_point = node.yield_point
         return self.visit(node.value)
 
     # Pass
     def visit_Pass(self, node):
         return ['// pass']
+
+    # BoolOp(boolop op, expr* values)
+    def visit_BoolOp(self, node):
+        op = JSCompiler.BOOL_OP[type(node.op)]
+        return '({0})'.format(op.join([self.visit(v) for v in node.values]))
 
     # BinOp(expr left, operator op, expr right)
     def visit_BinOp(self, node):
@@ -382,17 +411,14 @@ class JSCompiler(ast.NodeVisitor):
         if not getattr(node, 'yield_point', None):
             raise SyntaxError('Yield not inside a function block')
 
-        if hasattr(node, 'context'):
-            node.value.context = node.context
-
         tpl = []
         if except_point is not None:
             tpl = ['try {']
 
-        node.yield_point[0] += 1
+        yield_point = node.yield_point.create()
         body = [
             'var $tmp = {0};'.format(self.visit(node.value)),
-            '$ctx.next_state = {0};'.format(node.yield_point[0]),
+            '$ctx.next_state = {0};'.format(yield_point),
             '$ctx.yield = $tmp;',
             'return $ctx;'
         ]
@@ -407,7 +433,7 @@ class JSCompiler(ast.NodeVisitor):
         else:
             extend(tpl, body)
 
-        extend(tpl, 'case {0}:'.format(node.yield_point[0]))
+        extend(tpl, 'case {0}:'.format(yield_point))
         return tpl
 
     #Compare(expr left, cmpop* ops, expr* comparators)
@@ -420,14 +446,16 @@ class JSCompiler(ast.NodeVisitor):
         for op, right in zip(ops, comparators):
             tpl.append('{0} {1} {2}'.format(left, op, right))
             left = right
-
-        return ' && '.join(tpl)
+        return '&&'.join(tpl)
 
     # Call(
     #   expr func, expr* args, keyword* keywords, xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
         func = self.visit(node.func)
-        func_context = getattr(node.func, 'context', 'this')
+        if type(node.func) is ast.Attribute:
+            func_context = self.visit(node.func.value)
+        else:
+            func_context = 'this'
 
         if getattr(self.module, func, None) is JSCode:
             return node.args[0].s
@@ -453,9 +481,7 @@ class JSCompiler(ast.NodeVisitor):
             tpl = 'getattr({0}, "{1}")'
         else:
             tpl = '{0}.{1}'
-
-        node.context = self.visit(node.value)
-        return tpl.format(node.context, node.attr)
+        return tpl.format(self.visit(node.value), node.attr)
 
     # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, node):
