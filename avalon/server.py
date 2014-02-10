@@ -24,7 +24,7 @@ from tornado.ioloop import IOLoop
 from tornado.web import Application, FallbackHandler
 from tornado.wsgi import WSGIContainer
 
-from . import client, _log
+from . import client, compiler, _log
 from .model import model
 
 
@@ -199,11 +199,17 @@ def _index():
                 )
             )
 
-    # Append compiled Javascript functions
-    body.append(E.SCRIPT(
-        '\n'.join(f for f in client.compiled()),
-        type='text/javascript'
-    ))
+    # Append compiled runtime and Javascript functions
+    body.extend([
+        E.SCRIPT(
+            compiler.runtime(),
+            type='text/javascript'
+        ),
+        E.SCRIPT(
+            '\n'.join(f for f in client.compiled()),
+            type='text/javascript'
+        )
+    ])
 
     # Append bundle
     for b in _bundle_files:

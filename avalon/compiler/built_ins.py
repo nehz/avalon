@@ -5,7 +5,15 @@
 #==============================================================================
 
 """
-Python to Javascript compiler
+Built-in functions
 """
 
-from .compiler import jscompile, runtime
+from .compiler import JSCode
+
+
+JSCode('''
+  function getattr(obj, name, default_) {
+    return obj[name] ||
+        obj.__getattr__ && obj.__getattr__(obj, name) || default_;
+  }
+''')

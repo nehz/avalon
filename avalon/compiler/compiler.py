@@ -8,15 +8,13 @@ import ast
 import inspect
 import json
 import sys
+import types
 
 from .. import client, model
 
 
-class JSEnv(object):
-    def __getitem__(self, item):
-        pass
-
-    def alert(self, message):
+class JSCode(object):
+    def __init__(self, code):
         pass
 
 
@@ -59,8 +57,11 @@ class JSCompiler(ast.NodeVisitor):
 
     def __init__(self, obj):
         self.obj = obj
-        self.module = sys.modules[obj.__module__]
         self.node_chain = [None]
+        if isinstance(obj, types.ModuleType):
+            self.module = obj
+        else:
+            self.module = sys.modules.get(getattr(obj, '__module__', None))
 
     def visit(self, node):
         node.parent = self.node_chain[-1]
@@ -95,8 +96,8 @@ class JSCompiler(ast.NodeVisitor):
         else:
             return 'return;'
 
-    # FunctionDef(identifier name, arguments args,
-    # stmt* body, expr* decorator_list)
+    # FunctionDef(
+    #   identifier name, arguments args, stmt* body, expr* decorator_list)
     def visit_FunctionDef(self, node):
         context = getattr(node, 'context', 'this')
         args = ', '.join([self.visit(a) for a in node.args.args])
@@ -336,6 +337,14 @@ class JSCompiler(ast.NodeVisitor):
     def visit_Try(self, node):
         return self.visit_TryExcept(node)
 
+    # Import(alias* names)
+    def visit_Import(self, node):
+        return ''
+
+    # ImportFrom(identifier? module, alias* names, int? level)
+    def visit_ImportFrom(self, node):
+        return ''
+
     # Expr(expr value)
     def visit_Expr(self, node):
         if hasattr(node, 'context'):
@@ -414,11 +423,14 @@ class JSCompiler(ast.NodeVisitor):
 
         return ' && '.join(tpl)
 
-    # Call(expr func, expr* args, keyword* keywords,
-    # xpr? starargs, expr? kwargs)
+    # Call(
+    #   expr func, expr* args, keyword* keywords, xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
         func = self.visit(node.func)
         func_context = getattr(node.func, 'context', 'this')
+
+        if getattr(self.module, func, None) is JSCode:
+            return node.args[0].s
 
         if func == 'print':
             node.values = node.args
@@ -438,7 +450,7 @@ class JSCompiler(ast.NodeVisitor):
     # Attribute(expr value, identifier attr, expr_context ctx)
     def visit_Attribute(self, node):
         if isinstance(node.ctx, ast.Load):
-            tpl = '({0}.{1} || {0}.__getattr__ && {0}.__getattr__({0}, "{1}"))'
+            tpl = 'getattr({0}, "{1}")'
         else:
             tpl = '{0}.{1}'
 
@@ -522,3 +534,8 @@ def jscompile(obj):
         node = ast.parse(inspect.getsource(obj))
         obj.__js__ = JSCompiler(obj).visit(node)
     return obj.__js__
+
+
+def runtime():
+    from . import built_ins
+    return jscompile(built_ins)
