@@ -55,7 +55,8 @@ class ScopeType(type):
                     (f.event[0], f.event[1], f_name)
                     for f_name, f in classdict.items()
                     if getattr(f, 'event', None)
-                ]
+                ],
+                'name': scope_name
             }
 
             scope = type.__new__(mcs, name, bases, classdict)
@@ -72,6 +73,7 @@ class Scope(object):
         scope = ScopeType('Scope.{0}'.format(name), (Scope, ), {
             'name': name
         })
+        self.name = name
         return scope
 
 

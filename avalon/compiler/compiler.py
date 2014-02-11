@@ -27,7 +27,17 @@ class YieldPoint(object):
         return self.count
 
 
+class YieldSearch(ast.NodeVisitor):
+    def visit_Yield(self, node):
+        self.found_yield = True
+
+    def visit_FunctionDef(self, node):
+        pass
+
+
 class JSCompiler(ast.NodeVisitor):
+    KEYWORDS = ['default', 'switch', 'throw']
+
     BOOL_OP = {
         ast.And: '&&',
         ast.Or: '||',
@@ -87,6 +97,9 @@ class JSCompiler(ast.NodeVisitor):
         return ret
 
     def lookup(self, name):
+        if name == 'object':
+            return 'Object'
+
         value = getattr(self.module, name, None)
         if value is None:
             return None
@@ -94,6 +107,11 @@ class JSCompiler(ast.NodeVisitor):
             return '_session'
         elif value is model.model:
             return 'avalon.model'
+        return self.safe_name(name)
+
+    def safe_name(self, name):
+        if name in JSCompiler.KEYWORDS:
+            return name + '_'
         return name
 
     def generic_visit(self, node):
@@ -115,16 +133,19 @@ class JSCompiler(ast.NodeVisitor):
 
     # FunctionDef(
     #   identifier name, arguments args, stmt* body, expr* decorator_list)
-    def visit_FunctionDef(self, node):
+    def visit_FunctionDef(self, node, bound=False):
         context = node.context or 'this'
         args = [self.visit(a, inherit=False) for a in node.args.args]
+        arg0 = args[0] if bound else None
+        args = args[1:] if bound else args
         local = ', '.join(['{0}: {0}'.format(a) for a in args])
         args = ', '.join(args)
 
+        node.name = self.safe_name(node.name)
         tpl = [
             '{0}.{1} = function {1}({2}) {{'.format(context, node.name, args),
-            '  var $ctx = {next_state: 0, ctx: this};',
-            '  $ctx.local = {{{0}}};'.format(local),
+            '  var $ctx = {next_state: 0, ctx: this, local: {%s}};' % local,
+            '  $ctx.local.{0} = this;'.format(arg0) if arg0 else '',
             '  $ctx.func = function($ctx) {',
             '    while (true) switch($ctx.next_state) {',
             '      case 0:'
@@ -135,12 +156,16 @@ class JSCompiler(ast.NodeVisitor):
             extend(tpl, indent(self.visit(c, '$ctx.local'), level=3))
 
         extend(tpl, [
-            '      default: return;',
+            '      default: $ctx.end = true; return;',
             '    }',
             '  }',
-            '  return $ctx.func.call(this, $ctx);',
-            '}'
         ])
+
+        if is_generator(node):
+            extend(tpl, indent('return new generator($ctx);'))
+        else:
+            extend(tpl, indent('return $ctx.func.call(this, $ctx);'))
+        extend(tpl, '};')
         return tpl
 
     #ClassDef(identifier name, expr* bases, stmt* body, expr* decorator_list)
@@ -150,67 +175,98 @@ class JSCompiler(ast.NodeVisitor):
 
         tpl = []
         context = node.context or 'this'
-
         if node.bases:
-            scope_name = node.bases[0].attr
-            scope = client._scopes.get(scope_name, None)
-            class_name = scope_name
-        else:
-            scope = None
-            class_name = node.name
+            if isinstance(node.bases[0], ast.Attribute):
+                scope_name = node.bases[0].attr
+                scope = client._scopes.get(scope_name, None)
+                if scope:
+                    return self.visit_ClientScope(node, scope)
 
-        inject = ['$scope', '$element'] if scope else []
-        tpl.append('{0}.{1} = function {2}({3}) {{'.format(
-            context, class_name, node.name, ', '.join(inject)))
+        args = []
+        for c in node.body:
+            if isinstance(c, ast.FunctionDef) and c.name == '__init__':
+                args = [self.visit(a, inherit=False) for a in c.args.args]
+
+        # Constructor
+        node.name = self.safe_name(node.name)
+        extend(tpl, '{0}.{1} = function {1}({2}) {{'.format(
+            context, node.name, ', '.join(args[1:])))
+
+        # Allow object creation without using `new`
+        extend(tpl, '  if (!(this instanceof {0})) return new {0}({1});'.
+               format(node.name, ', '.join(args[1:])))
 
         for c in node.body:
-            extend(tpl, indent(self.visit(c, '$scope' if scope else None)))
+            if not isinstance(c, ast.FunctionDef):
+                extend(tpl, indent(self.visit(c)))
 
-        if scope:
-            # Events
-            tpl_on = '\n'.join(indent([
-                '$element.on("{0}", "{1}", function eventHandler(e) {{',
-                '  var t = angular.element(e.target).scope();',
-                '  $scope.$apply(function() {{ $scope.{2}($scope, t, e) }});',
-                '}})'
-            ]))
+        extend(tpl, '  if (this.__init__) this.__init__({0});'.
+               format(', '.join(args[1:])))
+        extend(tpl, '};')
 
-            extend(tpl, [tpl_on.format(*e) for e in scope['events']])
-            extend(tpl, indent([
-                '$scope.$on("$destroy", function() {',
-                '  $element.off();',
-                '})'
-            ]))
+        # Class body
+        prototype = '%s.%s.prototype' % (context, node.name)
+        if node.bases:
+            extend(tpl, [
+                'var $F = function() {};',
+                '$F.prototype = %s.prototype;' % self.visit(node.bases[0]),
+                '%s.%s.prototype = new $F();' % (context, node.name)
+            ])
 
-            # Support repeat scope
-            extend(tpl, indent([
-                'var $getattr = $scope.__getattr__;',
-                '$scope.__getattr__ = function __getattr__(self, value) {',
-                '  return self.$item && self.$item[value] ||',
-                '    $getattr && $getattr(self, value);',
-                '}'
-            ]))
-
-            # Constructor
-            extend(tpl, indent([
-                'if ($scope.__init__) {',
-                '  var __init__ = $scope.__init__;',
-                '  delete $scope.__init__;',
-                '  __init__($scope);',
-                '}'
-            ]))
-
-        extend(tpl, [
-            '};',
-            '{0}.{1}.$inject = {2};'.format(
-                context, class_name, json.dumps(inject))
-        ])
-
-        if not scope and node.bases:
-            tpl.append('{0}.{1}.prototype = new {2}();'.format(
-                context, node.name, self.visit(node.bases[0])))
+        for c in node.body:
+            if isinstance(c, ast.FunctionDef):
+                c.context = prototype
+                extend(tpl, self.visit_FunctionDef(c, bound=True))
 
         return tpl
+
+    def visit_ClientScope(self, node, scope):
+        context = node.context or 'this'
+        inject = ['$scope', '$element']
+        tpl = [
+            '{0}.{1} = function {2}({3}) {{'.format(
+                context, scope['name'], node.name, ', '.join(inject))
+        ]
+
+        for c in node.body:
+            extend(tpl, indent(self.visit(c, '$scope')))
+
+        # Events
+        tpl_on = '\n'.join(indent([
+            '$element.on("{0}", "{1}", function eventHandler(e) {{',
+            '  var t = angular.element(e.target).scope();',
+            '  $scope.$apply(function() {{ $scope.{2}($scope, t, e) }});',
+            '}})'
+        ]))
+
+        extend(tpl, [tpl_on.format(*e) for e in scope['events']])
+        extend(tpl, indent([
+            '$scope.$on("$destroy", function() {',
+            '  $element.off();',
+            '})'
+        ]))
+
+        # Support repeat scope
+        extend(tpl, indent([
+            'var $getattr = $scope.__getattr__;',
+            '$scope.__getattr__ = function __getattr__(self, value) {',
+            '  return self.$item && self.$item[value] ||',
+            '    $getattr && $getattr(self, value);',
+            '}'
+        ]))
+
+        # Scope constructor
+        extend(tpl, indent([
+            'if ($scope.__init__) {',
+            '  var __init__ = $scope.__init__;',
+            '  delete $scope.__init__;',
+            '  __init__($scope);',
+            '}'
+        ]))
+        return extend(tpl, [
+            '};', '{0}.{1}.$inject = {2};'.format(
+                context, scope['name'], json.dumps(inject))
+        ])
 
     # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
@@ -329,6 +385,10 @@ class JSCompiler(ast.NodeVisitor):
 
         return tpl
 
+    # Raise(expr? type, expr? inst, expr? tback)
+    def visit_Raise(self, node):
+        return 'throw %s' % self.visit(node.type)
+
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
         tpl = []
@@ -419,7 +479,7 @@ class JSCompiler(ast.NodeVisitor):
         body = [
             'var $tmp = {0};'.format(self.visit(node.value)),
             '$ctx.next_state = {0};'.format(yield_point),
-            '$ctx.yield = $tmp;',
+            '$ctx.result = $tmp;',
             'return $ctx;'
         ]
 
@@ -555,6 +615,17 @@ def extend(template, lines):
     return template
 
 
+def is_generator(node):
+    searcher = YieldSearch()
+    searcher.found_yield = False
+    if isinstance(node, ast.FunctionDef):
+        for c in node.body:
+            searcher.visit(c)
+    else:
+        searcher.visit(node)
+    return searcher.found_yield
+
+
 def jscompile(obj):
     if not getattr(obj, '__js__', None):
         node = ast.parse(inspect.getsource(obj))
@@ -563,5 +634,5 @@ def jscompile(obj):
 
 
 def runtime():
-    from . import built_ins
-    return jscompile(built_ins)
+    from . import type, built_ins
+    return jscompile(type) + jscompile(built_ins)
