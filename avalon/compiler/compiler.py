@@ -217,7 +217,7 @@ class JSCompiler(ast.NodeVisitor):
         tpl = []
         context = getattr(node, 'context', None)
 
-        if type(node.value) is ast.Yield:
+        if isinstance(node.value, ast.Yield):
             if getattr(node, 'yield_point', None):
                 node.value.yield_point = node.yield_point
             extend(tpl, self.visit(node.value))
@@ -226,7 +226,7 @@ class JSCompiler(ast.NodeVisitor):
             extend(tpl, 'var $assign = {0};'.format(self.visit(node.value)))
 
         for target in node.targets:
-            if type(target) is ast.Tuple:
+            if isinstance(target, ast.Tuple):
                 for i, t in enumerate(target.elts):
                     t = self.visit(t)
                     if not context:
@@ -340,7 +340,7 @@ class JSCompiler(ast.NodeVisitor):
         continue_point = node.yield_point.create()
 
         for c in node.body:
-            if type(c) is ast.Yield:
+            if isinstance(c, ast.Yield):
                 extend(tpl, self.visit_Yield(c, except_point=except_point)),
             else:
                 extend(tpl, [
@@ -452,7 +452,7 @@ class JSCompiler(ast.NodeVisitor):
     #   expr func, expr* args, keyword* keywords, xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
         func = self.visit(node.func)
-        if type(node.func) is ast.Attribute:
+        if isinstance(node.func, ast.Attribute):
             func_context = self.visit(node.func.value)
         else:
             func_context = 'this'
