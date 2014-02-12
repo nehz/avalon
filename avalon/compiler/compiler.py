@@ -326,13 +326,16 @@ class JSCompiler(ast.NodeVisitor):
         assign_node.context = '$ctx.local'
         extend(tpl, self.visit_Assign(assign_node))
 
-        # TODO: Check StopIteration exception
+        # TODO: Use except_point for general exception
         extend(tpl, [
             'case {0}:'.format(loop_point),
-            'try {{ $ctx.local.{0} = $ctx.local.iter.next(); }}'.format(
+            'try {{ {0} = $ctx.local.iter.next(); }}'.format(
                 self.visit(node.target)),
             'catch($exception) {',
-            '  $ctx.next_state = {0}; continue; '.format(break_point),
+            '  if ($exception instanceof StopIteration) {',
+            '    $ctx.next_state = {0}; continue; '.format(break_point),
+            '  }',
+            '  throw $exception;',
             '}'
         ])
 
