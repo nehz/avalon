@@ -97,10 +97,13 @@ class JSCompiler(ast.NodeVisitor):
         return ret
 
     def lookup(self, name):
+        from . import type, built_ins
         if name == 'object':
             return 'Object'
 
-        value = getattr(self.module, name, None)
+        value = (getattr(type, name, None) or getattr(built_ins, name, None) or
+                 getattr(self.module, name, None))
+
         if value is None:
             return None
         elif value is client.session:
