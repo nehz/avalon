@@ -100,6 +100,8 @@ class JSCompiler(ast.NodeVisitor):
         from . import type, built_ins
         if name == 'object':
             return 'Object'
+        elif name == 'print':
+            return name
 
         value = (getattr(type, name, None) or getattr(built_ins, name, None) or
                  getattr(self.module, name, None))
@@ -388,9 +390,13 @@ class JSCompiler(ast.NodeVisitor):
 
         return tpl
 
-    # Raise(expr? type, expr? inst, expr? tback)
+    # Py2: Raise(expr? type, expr? inst, expr? tback)
+    # Py3: Raise(expr? exc, expr? cause)
     def visit_Raise(self, node):
-        return 'throw %s' % self.visit(node.type)
+        if hasattr(node, 'type'):
+            return 'throw %s' % self.visit(node.type)
+        else:
+            return 'throw %s' % self.visit(node.exc)
 
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
