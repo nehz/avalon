@@ -4,12 +4,14 @@
 # Licence:      Private
 #==============================================================================
 
+from __future__ import absolute_import
+
 import ast
 import inspect
 import json
 import sys
-import types
 
+from types import ModuleType
 from .. import client, model
 
 
@@ -77,7 +79,7 @@ class JSCompiler(ast.NodeVisitor):
     def __init__(self, obj):
         self.obj = obj
         self.node_chain = [None]
-        if isinstance(obj, types.ModuleType):
+        if isinstance(obj, ModuleType):
             self.module = obj
         else:
             self.module = sys.modules.get(getattr(obj, '__module__', None))
@@ -97,13 +99,13 @@ class JSCompiler(ast.NodeVisitor):
         return ret
 
     def lookup(self, name):
-        from . import type, built_ins
+        from . import types, builtins
         if name == 'object':
             return 'Object'
         elif name == 'print':
             return name
 
-        value = (getattr(type, name, None) or getattr(built_ins, name, None) or
+        value = (getattr(types, name, None) or getattr(builtins, name, None) or
                  getattr(self.module, name, None))
 
         if value is None:
@@ -643,5 +645,5 @@ def jscompile(obj):
 
 
 def runtime():
-    from . import type, built_ins
-    return jscompile(type) + jscompile(built_ins)
+    from . import types, builtins
+    return jscompile(types) + jscompile(builtins)
