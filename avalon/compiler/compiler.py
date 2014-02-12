@@ -151,10 +151,12 @@ class JSCompiler(ast.NodeVisitor):
         node.name = self.safe_name(node.name)
         tpl = [
             '{0}.{1} = function {1}({2}) {{'.format(context, node.name, args),
-            '  var $ctx = {next_state: 0, ctx: this, local: {%s}};' % local,
+            '  var $exception;',
+            '  var $ctx = {next_state: 0, ctx: this, try_stack: []};',
+            '  $ctx.local = {{{0}}};'.format(local),
             '  $ctx.local.{0} = this;'.format(arg0) if arg0 else '',
             '  $ctx.func = function($ctx) {',
-            '    while (true) switch($ctx.next_state) {',
+            '    while (true) try { switch($ctx.next_state) {',
             '      case 0:'
         ]
 
@@ -164,6 +166,11 @@ class JSCompiler(ast.NodeVisitor):
 
         extend(tpl, [
             '      default: $ctx.end = true; return;',
+            '    }} catch($e) {',
+            '      $exception = $e;',
+            '      $ctx.next_state = $ctx.try_stack.pop();',
+            '      if ($ctx.next_state === undefined) throw $exception;',
+            '      continue;',
             '    }',
             '  }',
         ])
@@ -319,6 +326,8 @@ class JSCompiler(ast.NodeVisitor):
 
         tpl = []
         loop_point = node.yield_point.create()
+        except_point = node.yield_point.create()
+        continue_point = node.yield_point.create()
         break_point = node.yield_point.create()
 
         target_node = ast.Name('iter', None)
@@ -326,17 +335,18 @@ class JSCompiler(ast.NodeVisitor):
         assign_node.context = '$ctx.local'
         extend(tpl, self.visit_Assign(assign_node))
 
-        # TODO: Use except_point for general exception
         extend(tpl, [
             'case {0}:'.format(loop_point),
-            'try {{ {0} = $ctx.local.iter.next(); }}'.format(
-                self.visit(node.target)),
-            'catch($exception) {',
-            '  if ($exception instanceof StopIteration) {',
-            '    $ctx.next_state = {0}; continue; '.format(break_point),
-            '  }',
-            '  throw $exception;',
-            '}'
+            '$ctx.try_stack.push({0});'.format(except_point),
+            '{0} = $ctx.local.iter.next();'.format(self.visit(node.target)),
+            '$ctx.try_stack.pop();',
+            '$ctx.next_state = {0}; continue;'.format(continue_point),
+            'case {0}:'.format(except_point),
+            'if ($exception instanceof StopIteration) {',
+            '  $ctx.next_state = {0}; continue; '.format(break_point),
+            '}',
+            'throw $exception;',
+            'case {0}:'.format(continue_point)
         ])
 
         for c in node.body:
@@ -399,32 +409,24 @@ class JSCompiler(ast.NodeVisitor):
     # Py3: Raise(expr? exc, expr? cause)
     def visit_Raise(self, node):
         if hasattr(node, 'type'):
-            return 'throw %s' % self.visit(node.type)
+            return 'throw {0}'.format(self.visit(node.type))
         else:
-            return 'throw %s' % self.visit(node.exc)
+            return 'throw {0}'.format(self.visit(node.exc))
 
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
-        tpl = []
-
-        if not hasattr(node, 'yield_point'):
+        if not getattr(node, 'yield_point', None):
             raise SyntaxError('Try block not inside a function block')
 
         except_point = node.yield_point.create()
         continue_point = node.yield_point.create()
 
+        tpl = ['$ctx.try_stack.push({0});'.format(except_point)]
         for c in node.body:
-            if isinstance(c, ast.Yield):
-                extend(tpl, self.visit_Yield(c, except_point=except_point)),
-            else:
-                extend(tpl, [
-                    'try {{ {0} }}'.format(self.visit(c)),
-                    'catch($exception) {',
-                    '  $ctx.next_state = {0}; continue;'.format(except_point),
-                    '}'
-                ])
+            extend(tpl, self.visit(c))
 
         extend(tpl, [
+            '$ctx.try_stack.pop();',
             '$ctx.next_state = {0}; continue;'.format(continue_point),
             'case {0}:'.format(except_point)
         ])
@@ -432,7 +434,7 @@ class JSCompiler(ast.NodeVisitor):
         for c in node.handlers:
             extend(tpl, self.visit(c))
 
-        tpl.append('case {0}:'.format(continue_point))
+        extend(tpl, 'case {0}:'.format(continue_point))
         return tpl
 
     # Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
@@ -481,34 +483,18 @@ class JSCompiler(ast.NodeVisitor):
         ]))
 
     # Yield(expr? value)
-    def visit_Yield(self, node, except_point=None):
+    def visit_Yield(self, node):
         if not getattr(node, 'yield_point', None):
             raise SyntaxError('Yield not inside a function block')
 
-        tpl = []
-        if except_point is not None:
-            tpl = ['try {']
-
         yield_point = node.yield_point.create()
-        body = [
+        return [
             'var $tmp = {0};'.format(self.visit(node.value)),
             '$ctx.next_state = {0};'.format(yield_point),
             '$ctx.result = $tmp;',
-            'return $ctx;'
+            'return $ctx;',
+            'case {0}:'.format(yield_point),
         ]
-
-        if except_point is not None:
-            extend(tpl, indent(body))
-            extend(tpl, (
-                '} catch ($exception) {',
-                '  $ctx.next_state = {0}; continue;'.format(except_point),
-                '}'
-            ))
-        else:
-            extend(tpl, body)
-
-        extend(tpl, 'case {0}:'.format(yield_point))
-        return tpl
 
     #Compare(expr left, cmpop* ops, expr* comparators)
     def visit_Compare(self, node):
@@ -596,14 +582,15 @@ class JSCompiler(ast.NodeVisitor):
     def visit_ExceptHandler(self, node):
         tpl = []
         if node.type:
-            tpl.append('if (__exception__.type == {0}'.format(node.type))
+            tpl.append('if ($exception instanceof {0}) {{'.format(
+                self.visit(node.type)))
         else:
-            tpl.append('if (__exception__) {')
+            tpl.append('if ($exception) {')
 
         for c in node.body:
             extend(tpl, indent(self.visit(c)))
 
-        tpl.append(indent('__exception__ = undefined'))
+        tpl.append(indent('$exception = undefined;'))
         tpl.append('}')
 
         return tpl
