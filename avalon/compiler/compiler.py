@@ -326,9 +326,9 @@ class JSCompiler(ast.NodeVisitor):
 
         tpl = []
         loop_point = node.yield_point.create()
-        except_point = node.yield_point.create()
-        continue_point = node.yield_point.create()
         break_point = node.yield_point.create()
+        try_except_point = node.yield_point.create()
+        try_continue_point = node.yield_point.create()
 
         target_node = ast.Name('iter', None)
         assign_node = ast.Assign([target_node], node.iter)
@@ -337,16 +337,16 @@ class JSCompiler(ast.NodeVisitor):
 
         extend(tpl, [
             'case {0}:'.format(loop_point),
-            '$ctx.try_stack.push({0});'.format(except_point),
+            '$ctx.try_stack.push({0});'.format(try_except_point),
             '{0} = $ctx.local.iter.next();'.format(self.visit(node.target)),
             '$ctx.try_stack.pop();',
-            '$ctx.next_state = {0}; continue;'.format(continue_point),
-            'case {0}:'.format(except_point),
+            '$ctx.next_state = {0}; continue;'.format(try_continue_point),
+            'case {0}:'.format(try_except_point),
             'if ($exception instanceof StopIteration) {',
             '  $ctx.next_state = {0}; continue; '.format(break_point),
             '}',
             'throw $exception;',
-            'case {0}:'.format(continue_point)
+            'case {0}:'.format(try_continue_point)
         ])
 
         for c in node.body:
@@ -418,23 +418,23 @@ class JSCompiler(ast.NodeVisitor):
         if not getattr(node, 'yield_point', None):
             raise SyntaxError('Try block not inside a function block')
 
-        except_point = node.yield_point.create()
-        continue_point = node.yield_point.create()
+        try_except_point = node.yield_point.create()
+        try_continue_point = node.yield_point.create()
 
-        tpl = ['$ctx.try_stack.push({0});'.format(except_point)]
+        tpl = ['$ctx.try_stack.push({0});'.format(try_except_point)]
         for c in node.body:
             extend(tpl, self.visit(c))
 
         extend(tpl, [
             '$ctx.try_stack.pop();',
-            '$ctx.next_state = {0}; continue;'.format(continue_point),
-            'case {0}:'.format(except_point)
+            '$ctx.next_state = {0}; continue;'.format(try_continue_point),
+            'case {0}:'.format(try_except_point)
         ])
 
         for c in node.handlers:
             extend(tpl, self.visit(c))
 
-        extend(tpl, 'case {0}:'.format(continue_point))
+        extend(tpl, 'case {0}:'.format(try_continue_point))
         return tpl
 
     # Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
