@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
 # Copyright:    Hybrid Labs
-# Licence:      Private
+# Licence:      See LICENSE
 #==============================================================================
 
 from __future__ import absolute_import

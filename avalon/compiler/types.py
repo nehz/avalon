@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
 # Copyright:    Hybrid Labs
-# Licence:      Private
+# Licence:      See LICENSE
 #==============================================================================
 
 """
 Basic types
 """
-
 
 class generator(object):
     def __init__(self, ctx):

@@ -1,43 +1,14 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
-# Name:         client
-# Description:  Javascript client integration
 # Copyright:    Hybrid Labs
-# Licence:      Private
+# Licence:      See LICENSE
 #==============================================================================
 
 from .utils import attrfunc
 
-
-#==============================================================================
-# Vars
-#==============================================================================
-
 _functions = []
 _scopes = {}
 
-
-#==============================================================================
-# Decorators
-#==============================================================================
-
-def expose(obj):
-    _functions.append(obj)
-    return obj
-
-
-@attrfunc
-def event(name, selector=''):
-    def d(f):
-        f.event = (name, selector)
-        return f
-
-    return d
-
-
-#==============================================================================
-# Scope, Session
-#==============================================================================
 
 class ScopeType(type):
     def __new__(mcs, name, bases, classdict):
@@ -82,13 +53,19 @@ class Session(dict):
         return self[name]
 
 
-template = Scope()
-session = Session()
+def expose(obj):
+    _functions.append(obj)
+    return obj
 
 
-#==============================================================================
-# Helpers
-#==============================================================================
+@attrfunc
+def event(name, selector=''):
+    def d(f):
+        f.event = (name, selector)
+        return f
+
+    return d
+
 
 @expose
 def check(f, args):
@@ -101,3 +78,7 @@ def check(f, args):
 def compiled():
     from .compiler import jscompile
     return [jscompile(f) for f in _functions]
+
+
+template = Scope()
+session = Session()

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
-# Name:         avalon
-# Description:  Avalon Framework
 # Copyright:    Hybrid Labs
-# Licence:      Private
+# Licence:      See LICENSE
 #==============================================================================
+
+"""
+Avalon web framework
+"""
 
 import logging
 _log = logging.getLogger('avalon')

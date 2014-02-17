@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
-# Name:         server
-# Description:  Web server
 # Copyright:    Hybrid Labs
-# Licence:      Private
+# Licence:      See LICENSE
 #==============================================================================
 
 import inspect
@@ -27,15 +25,10 @@ from tornado.wsgi import WSGIContainer
 from . import client, compiler, _log
 from .model import model
 
-
-#==============================================================================
-# Vars
-#==============================================================================
-
 _routes = []
 _root_path = os.path.dirname(__file__)
-_view_path = 'view'
-_controller_path = 'controller'
+_view_path = 'views'
+_controller_path = 'controllers'
 _cdn = True
 _bundle_files = [
     (
@@ -74,10 +67,6 @@ _template_handler = {
 }
 
 
-#==============================================================================
-# Decorators
-#==============================================================================
-
 def channel(route):
     def _d(f):
         class _Channel(Channel):
@@ -100,10 +89,6 @@ def channel(route):
         return f
     return _d
 
-
-#==============================================================================
-# Server
-#==============================================================================
 
 @channel('/_avalon')
 def _server(request, message):
@@ -272,10 +257,6 @@ def _bundle(filename):
 def _static(filename):
     return static_file(filename, root=_view_path)
 
-
-#==============================================================================
-# Functions
-#==============================================================================
 
 def serve(db=None, mount_app=None, port=8080, verbose=False,
           view_path=None, controller_path=None, cdn=True):

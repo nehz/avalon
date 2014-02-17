@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 #==============================================================================
 # Copyright:    Hybrid Labs
-# Licence:      Private
+# Licence:      See LICENSE
 #==============================================================================
 
 import greenlet
-import hashlib
 
 from bson import ObjectId, json_util as json
 from datetime import datetime
