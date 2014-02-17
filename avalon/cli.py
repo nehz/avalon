@@ -52,7 +52,7 @@ def init(args):
 
 
 def main():
-    args = ArgumentParser('proto')
+    args = ArgumentParser('avalon')
     command = args.add_subparsers()
 
     cmd = command.add_parser('init', help='create a project')
