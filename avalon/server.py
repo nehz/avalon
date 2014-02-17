@@ -149,7 +149,7 @@ def _index():
                     for name in names:
                         if name in template_names:
                             _log.error('Duplicate template "%s" found (%s)',
-                                          name, filename)
+                                       name, filename)
                             continue
 
                         template = E.SCRIPT(
@@ -172,20 +172,19 @@ def _index():
                         s.format(name, 'template-{0}'.format(name))
                         for name in template_names
                     ]),
-                    type='text/javascript'
-                )
-            )
+                    type='text/javascript'))
+
+    # Append styles
+    head.append(E.STYLE(style.getvalue()))
 
     # Append compiled runtime and Javascript functions
     body.extend([
         E.SCRIPT(
             compiler.runtime(),
-            type='text/javascript'
-        ),
+            type='text/javascript'),
         E.SCRIPT(
             '\n'.join(f for f in client.compiled()),
-            type='text/javascript'
-        )
+            type='text/javascript')
     ])
 
     # Append bundle
@@ -194,8 +193,7 @@ def _index():
         if len(b) == 2:
             body.append(E.SCRIPT(
                 src='bundle/{0}'.format(b[1]),
-                type='text/javascript'
-            ))
+                type='text/javascript'))
         elif _cdn:
             link = html.tostring(E.SCRIPT(
                 src='bundle/{0}'.format(b[2]),
@@ -206,18 +204,15 @@ def _index():
             body.extend([
                 E.SCRIPT(
                     src=b[1],
-                    type='text/javascript'
-                ),
+                    type='text/javascript'),
                 E.SCRIPT(
                     "window.{0} || document.write('{1}')".format(b[0], link),
-                    type='text/javascript'
-                )
+                    type='text/javascript')
             ])
         else:
             body.append(E.SCRIPT(
                 src='bundle/{0}'.format(b[2]),
-                type='text/javascript'
-            ))
+                type='text/javascript'))
 
     # Append templates
     body.extend(templates)
@@ -233,8 +228,7 @@ def _index():
             '}])',
             'angular.bootstrap(document, ["app"]);'
         ]),
-        type='text/javascript'
-    ))
+        type='text/javascript'))
 
     return unescape(html.tostring(E.HTML(head, body), doctype=DOCTYPE,
                                   encoding='utf-8'))
