@@ -261,10 +261,6 @@ def _static(filename):
 def serve(db=None, mount_app=None, port=8080, verbose=False,
           view_path=None, controller_path=None, cdn=True):
 
-    # Chdir to app root
-    root = inspect.getfile(inspect.currentframe().f_back)
-    os.chdir(os.path.dirname(root) or '.')
-
     global _view_path, _controller_path, _cdn
     _view_path = view_path or _view_path
     _controller_path = controller_path or _controller_path
