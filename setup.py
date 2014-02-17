@@ -27,6 +27,8 @@ setup(
         'sockjs-tornado >= 1.0.0',
         'bottle >= 0.12.0',
         'lxml >= 3.2.3',
-        'motor >= 0.1.2'
+        'motor >= 0.1.2',
+        'pyjade >= 2.0.0',
+        'pyscss >= 1.1.5'
     ],
 )

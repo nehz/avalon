@@ -4,14 +4,13 @@
 # Licence:      See LICENSE
 #==============================================================================
 
-import inspect
 import logging
 import os
 
 from bottle import get, default_app, static_file
 from bson import json_util as json
-from codecs import open
 from greenlet import greenlet as Greenlet
+from io import StringIO
 from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
@@ -22,7 +21,7 @@ from tornado.ioloop import IOLoop
 from tornado.web import Application, FallbackHandler
 from tornado.wsgi import WSGIContainer
 
-from . import client, compiler, _log
+from . import build, client, compiler, _log
 from .model import model
 
 _routes = []
@@ -62,9 +61,6 @@ _bundle_files = [
     )
 ]
 _router.DEFAULT_SETTINGS['sockjs_url'] = '/bundle/sockjs-0.3.4.min.js'
-_template_handler = {
-    '.html': True
-}
 
 
 def channel(route):
@@ -107,8 +103,8 @@ def _server(request, message):
 def _index():
     # Gather, convert and process assets
     DOCTYPE = '<!DOCTYPE html>'
-    style = E.STYLE()
-    head = E.HEAD(style)
+    style = StringIO()
+    head = E.HEAD()
     body = E.BODY()
     templates = []
     template_names = []
@@ -118,26 +114,22 @@ def _index():
             ext = os.path.splitext(filename)[-1]
             filename = os.path.join(dirpath, filename)
 
-            with open(filename, 'r', encoding='utf-8') as f:
-                t = f.read()
-
-            if ext in ['.css']:
-                style.text = (style.text or '') + t
+            handler = build.style_handler.get(ext)
+            if handler:
+                style.write(handler(filename))
                 continue
 
-            handler = _template_handler.get(ext, None)
+            handler = build.template_handler.get(ext)
             if not handler:
                 continue
+            contents = handler(filename)
 
-            if callable(handler):
-                t = handler(t)
-
-            if not t:
+            if not contents:
                 _log.warning('View is empty (%s)', filename)
                 continue
 
             try:
-                dom = html.fromstring('<head></head>' + t)
+                dom = html.fromstring('<head></head>' + contents)
             except Exception as e:
                 _log.error('Parse error (%s) %s', filename, e)
                 continue
