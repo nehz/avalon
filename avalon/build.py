@@ -6,7 +6,8 @@
 
 
 import os
-from codecs import open
+import six
+from io import open
 
 
 def contents(filename):
@@ -20,9 +21,12 @@ def jade_compile(filename):
 
 
 def scss_compile(filename):
-    import scss
-    scss.config.LOAD_PATHS = [os.path.dirname(filename)]
-    return scss.Scss().compile(scss_file=filename)
+    from scss import Scss
+    scss = Scss(search_paths=[os.path.dirname(filename)])
+    if six.PY3:
+        return scss.compile(contents(filename))
+    else:
+        return scss.compile(contents(filename).encode('utf-8')).decode('utf-8')
 
 
 template_handler = {

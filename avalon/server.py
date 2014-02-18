@@ -10,7 +10,7 @@ import os
 from bottle import get, default_app, static_file
 from bson import json_util as json
 from greenlet import greenlet as Greenlet
-from io import StringIO
+from six import StringIO
 from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
