@@ -18,7 +18,7 @@ def serve(args):
     except:
         from configparser import ConfigParser
 
-    config = ConfigParser({'port': '8080'})
+    config = ConfigParser({'port': '8080', 'db': None})
     config.read([CONFIG_FILE])
 
     port = int(args.port or int(config.get('app', 'port')))
@@ -33,7 +33,7 @@ def serve(args):
     else:
         cdn = args.cdn
 
-    server.serve(db=getattr(args, 'db', None), port=port, verbose=args.verbose,
+    server.serve(db=config.get('app', 'db'), port=port, verbose=args.verbose,
                  view_path=view_path, controller_path=controller_path, cdn=cdn)
 
 
