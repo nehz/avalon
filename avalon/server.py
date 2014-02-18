@@ -6,6 +6,7 @@
 
 import logging
 import os
+import sys
 
 from bottle import get, default_app, static_file
 from bson import json_util as json
@@ -272,6 +273,10 @@ def serve(db=None, mount_app=None, port=8080, verbose=False,
     ])
 
     # Import controllers
+    module_path = os.path.join(_controller_path, '..')
+    if module_path not in sys.path:
+        sys.path.append(module_path)
+
     for dirpath, dirnames, filenames in os.walk(_controller_path):
         for f in filenames:
             module, ext = os.path.splitext(f)
