@@ -110,6 +110,33 @@ def _index():
     templates = []
     template_names = []
 
+    def visit(node, f):
+        for c in node.getchildren():
+            visit(c, f)
+            if c.tag != 'template':
+                continue
+            names = [n[1:] for n in c.keys() if n and n[0] == ':']
+            if not names:
+                _log.error('Unbound template found (%s)', f)
+                continue
+
+            for name in names:
+                if name in template_names:
+                    _log.error('Duplicate template "%s" found (%s)', name, f)
+                    continue
+
+                template = E.SCRIPT(
+                    id='template-{0}'.format(name),
+                    type='text/x-angulate-template'
+                )
+                template.text = c.text
+                template.extend(c.getchildren())
+                templates.append(template)
+
+            template_names.extend(names)
+            node.remove(c)
+        return
+
     for dirpath, dirnames, filenames in os.walk(_view_path):
         for filename in filenames:
             ext = os.path.splitext(filename)[-1]
@@ -139,29 +166,9 @@ def _index():
                 if e.tag == 'head':
                     head.extend(e.getchildren())
                 elif e.tag == 'body':
-                    body.text = (body.text or '') + e.text
+                    visit(e, filename)
+                    body.text = (body.text or '') + (e.text or '')
                     body.extend(e.getchildren())
-                elif e.tag in ['template', 'view']:
-                    names = [n[1:] for n in e.keys() if n and n[0] == ':']
-
-                    if not names:
-                        continue
-
-                    for name in names:
-                        if name in template_names:
-                            _log.error('Duplicate template "%s" found (%s)',
-                                       name, filename)
-                            continue
-
-                        template = E.SCRIPT(
-                            id='template-{0}'.format(name),
-                            type='text/x-angulate-template'
-                        )
-                        template.text = e.text
-                        template.extend(e.getchildren())
-                        templates.append(template)
-
-                    template_names.extend(names)
                 else:
                     _log.error('View is invalid (%s)', filename)
                     continue
