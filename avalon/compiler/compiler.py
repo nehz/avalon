@@ -627,7 +627,7 @@ def is_generator(node):
     return searcher.found_yield
 
 
-def jscompile(obj):
+def js_compile(obj):
     if not getattr(obj, '__js__', None):
         node = ast.parse(inspect.getsource(obj))
         obj.__js__ = JSCompiler(obj).visit(node)
@@ -636,4 +636,4 @@ def jscompile(obj):
 
 def runtime():
     from . import types, builtins
-    return jscompile(types) + jscompile(builtins)
+    return js_compile(types) + js_compile(builtins)

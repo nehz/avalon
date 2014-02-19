@@ -8,4 +8,4 @@
 Python to Javascript compiler
 """
 
-from .compiler import jscompile, runtime
+from .compiler import js_compile, runtime, JSCode

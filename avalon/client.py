@@ -76,8 +76,8 @@ def check(f, args):
 
 
 def compiled():
-    from .compiler import jscompile
-    return [jscompile(f) for f in _functions]
+    from .compiler import js_compile
+    return [js_compile(f) for f in _functions]
 
 
 template = Scope()
