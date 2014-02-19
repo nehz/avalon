@@ -5,6 +5,7 @@
 #==============================================================================
 
 import logging
+import mimetypes
 import os
 import sys
 
@@ -62,6 +63,12 @@ _bundle_files = [
     )
 ]
 _router.DEFAULT_SETTINGS['sockjs_url'] = '/bundle/sockjs-0.3.4.min.js'
+
+# Fix mimetypes
+mimetypes.add_type('image/png', '.png', True)
+mimetypes.add_type('audio/mpeg', '.mp3', True)
+mimetypes.add_type('application/x-font-ttf', '.ttf', True)
+mimetypes.add_type('application/x-font-woff', '.woff', True)
 
 
 def channel(route):
