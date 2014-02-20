@@ -176,6 +176,8 @@ def _index():
                     visit(e, filename)
                     body.text = (body.text or '') + (e.text or '')
                     body.extend(e.getchildren())
+                elif e.tag == 'template':
+                    visit(E.BODY(e), filename)
                 else:
                     _log.error('View is invalid (%s)', filename)
                     continue
