@@ -369,8 +369,8 @@ class JSCompiler(ast.NodeVisitor):
             raise SyntaxError('While statement not inside a function block')
 
         tpl = []
-        loop_point = node.branch.create()
-        break_point = node.branch.create()
+        node.loop_point = loop_point = node.branch.create()
+        node.break_point = break_point = node.branch.create()
 
         extend(tpl, [
             'case {0}:'.format(loop_point),
