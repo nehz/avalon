@@ -86,6 +86,7 @@ class JSCompiler(ast.NodeVisitor):
     def visit(self, node, context=None, inherit=True, **kwargs):
         node.parent = self.node_chain[-1]
         node.context = getattr(node, 'context', context)
+
         if inherit and node.parent:
             node.branch = getattr(node.parent, 'branch', None)
             node.loop_point = getattr(node.parent, 'loop_point', None)
@@ -396,17 +397,29 @@ class JSCompiler(ast.NodeVisitor):
 
     # If(expr test, stmt* body, stmt* orelse)
     def visit_If(self, node):
-        tpl = ['if ({0}) {{'.format(self.visit(node.test))]
+        if not node.branch:
+            raise SyntaxError('If block not inside a function block')
+
+        else_point = node.branch.create()
+        continue_point = node.branch.create()
+        tpl = [
+            'if (!({0})) {{ {1} }}'.format(
+                self.visit(node.test), goto(else_point))
+        ]
+
         for c in node.body:
-            extend(tpl, indent(self.visit(c)))
-        tpl.append('}')
+            extend(tpl, self.visit(c))
+
+        extend(tpl, [
+            goto(continue_point),
+            label(else_point)
+        ])
 
         if node.orelse:
-            tpl.append('else {')
             for c in node.orelse:
-                extend(tpl, indent(self.visit(c)))
-            tpl.append('}')
+                extend(tpl, self.visit(c))
 
+        extend(tpl, label(continue_point))
         return tpl
 
     # Py2: Raise(expr? type, expr? inst, expr? tback)
@@ -630,6 +643,14 @@ def extend(template, lines):
     else:
         template.append(lines)
     return template
+
+
+def goto(point, state='$ctx.next_state'):
+    return '{0} = {1}; continue;'.format(state, point)
+
+
+def label(point):
+    return 'case {0}:'.format(point)
 
 
 def is_generator(node):
