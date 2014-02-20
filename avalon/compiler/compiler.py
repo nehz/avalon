@@ -19,7 +19,7 @@ class JSCode(object):
         pass
 
 
-class YieldPoint(object):
+class BranchPoint(object):
     def __init__(self):
         self.count = 0
 
@@ -87,12 +87,12 @@ class JSCompiler(ast.NodeVisitor):
         node.parent = self.node_chain[-1]
         node.context = getattr(node, 'context', context)
         if inherit and node.parent:
-            node.yield_point = getattr(node.parent, 'yield_point', None)
+            node.branch = getattr(node.parent, 'branch', None)
             node.loop_point = getattr(node.parent, 'loop_point', None)
             node.break_point = getattr(node.parent, 'break_point', None)
             node.context = node.context or node.parent.context
         else:
-            node.yield_point = None
+            node.branch = None
             node.loop_point = None
             node.break_point = None
 
@@ -165,7 +165,7 @@ class JSCompiler(ast.NodeVisitor):
             '      case 0:'
         ]
 
-        node.yield_point = YieldPoint()
+        node.branch = BranchPoint()
         for c in node.body:
             extend(tpl, indent(self.visit(c, '$ctx.local'), level=3))
 
@@ -292,11 +292,7 @@ class JSCompiler(ast.NodeVisitor):
     # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
         tpl = []
-        context = getattr(node, 'context', None)
-
         if isinstance(node.value, ast.Yield):
-            if getattr(node, 'yield_point', None):
-                node.value.yield_point = node.yield_point
             extend(tpl, self.visit(node.value))
             extend(tpl, 'var $assign = $ctx.send;')
         else:
@@ -306,12 +302,12 @@ class JSCompiler(ast.NodeVisitor):
             if isinstance(target, ast.Tuple):
                 for i, t in enumerate(target.elts):
                     t = self.visit(t)
-                    if not context:
+                    if not node.context:
                         tpl.append('var {0} = $assign[{1}];'.format(t, i))
                     tpl.append('{0} = $assign[{1}];'.format(t, i))
             else:
                 target = self.visit(target)
-                if not context:
+                if not node.context:
                     tpl.append('var {0} = $assign;'.format(target))
                 tpl.append('{0} = $assign;'.format(target))
 
@@ -328,14 +324,14 @@ class JSCompiler(ast.NodeVisitor):
     def visit_For(self, node):
         if node.orelse:
             raise NotImplementedError('For else statement not supported')
-        if not hasattr(node, 'yield_point'):
+        if not node.branch:
             raise SyntaxError('For statement not inside a function block')
 
         tpl = []
-        node.loop_point = loop_point = node.yield_point.create()
-        node.break_point = break_point = node.yield_point.create()
-        try_except_point = node.yield_point.create()
-        try_continue_point = node.yield_point.create()
+        node.loop_point = loop_point = node.branch.create()
+        node.break_point = break_point = node.branch.create()
+        try_except_point = node.branch.create()
+        try_continue_point = node.branch.create()
 
         target_node = ast.Name('iter', None)
         assign_node = ast.Assign([target_node], node.iter)
@@ -369,12 +365,12 @@ class JSCompiler(ast.NodeVisitor):
     def visit_While(self, node):
         if node.orelse:
             raise NotImplementedError('While else statement not supported')
-        if not hasattr(node, 'yield_point'):
+        if not node.branch:
             raise SyntaxError('While statement not inside a function block')
 
         tpl = []
-        loop_point = node.yield_point.create()
-        break_point = node.yield_point.create()
+        loop_point = node.branch.create()
+        break_point = node.branch.create()
 
         extend(tpl, [
             'case {0}:'.format(loop_point),
@@ -422,11 +418,11 @@ class JSCompiler(ast.NodeVisitor):
 
     # TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
     def visit_TryExcept(self, node):
-        if not getattr(node, 'yield_point', None):
+        if not node.branch:
             raise SyntaxError('Try block not inside a function block')
 
-        try_except_point = node.yield_point.create()
-        try_continue_point = node.yield_point.create()
+        try_except_point = node.branch.create()
+        try_continue_point = node.branch.create()
 
         tpl = ['$ctx.try_stack.push({0});'.format(try_except_point)]
         for c in node.body:
@@ -503,10 +499,10 @@ class JSCompiler(ast.NodeVisitor):
 
     # Yield(expr? value)
     def visit_Yield(self, node):
-        if not getattr(node, 'yield_point', None):
+        if not node.branch:
             raise SyntaxError('Yield not inside a function block')
 
-        yield_point = node.yield_point.create()
+        yield_point = node.branch.create()
         return [
             'var $tmp = {0};'.format(self.visit(node.value)),
             '$ctx.next_state = {0};'.format(yield_point),
@@ -580,7 +576,7 @@ class JSCompiler(ast.NodeVisitor):
         elif node.id == 'False':
             return 'false'
 
-        if getattr(node, 'context', None):
+        if node.context:
             return '{0}.{1}'.format(node.context, node.id)
         else:
             return node.id
