@@ -341,25 +341,24 @@ class JSCompiler(ast.NodeVisitor):
         extend(tpl, self.visit(assign_node))
 
         extend(tpl, [
-            'case {0}:'.format(loop_point),
+            label(loop_point),
             '$ctx.try_stack.push({0});'.format(try_except_point),
             '{0} = $ctx.local.iter.next();'.format(self.visit(node.target)),
             '$ctx.try_stack.pop();',
-            '$ctx.next_state = {0}; continue;'.format(try_continue_point),
-            'case {0}:'.format(try_except_point),
-            'if ($exception instanceof StopIteration) {',
-            '  $ctx.next_state = {0}; continue; '.format(break_point),
-            '}',
+            goto(try_continue_point),
+            label(try_except_point),
+            'if ($exception instanceof StopIteration) {{ {0} }}'.format(
+                goto(break_point)),
             'throw $exception;',
-            'case {0}:'.format(try_continue_point)
+            label(try_continue_point)
         ])
 
         for c in node.body:
             extend(tpl, self.visit(c, '$ctx.local'))
 
         extend(tpl, [
-            '$ctx.next_state = {0}; continue;'.format(loop_point),
-            'case {0}:'.format(break_point)
+            goto(loop_point),
+            label(break_point)
         ])
         return tpl
 
@@ -375,18 +374,17 @@ class JSCompiler(ast.NodeVisitor):
         node.break_point = break_point = node.branch.create()
 
         extend(tpl, [
-            'case {0}:'.format(loop_point),
-            'if (!({0})) {{'.format(self.visit(node.test)),
-            '  $ctx.next_state = {0}; continue;'.format(break_point),
-            '}'
+            label(loop_point),
+            'if (!({0})) {{ {1} }}'.format(
+                self.visit(node.test), goto(break_point))
         ])
 
         for c in node.body:
             extend(tpl, self.visit(c, '$ctx.local'))
 
         extend(tpl, [
-            '$ctx.next_state = {0}; continue;'.format(loop_point),
-            'case {0}:'.format(break_point)
+            goto(loop_point),
+            label(break_point)
         ])
         return tpl
 
@@ -444,14 +442,14 @@ class JSCompiler(ast.NodeVisitor):
 
         extend(tpl, [
             '$ctx.try_stack.pop();',
-            '$ctx.next_state = {0}; continue;'.format(try_continue_point),
-            'case {0}:'.format(try_except_point)
+            goto(try_continue_point),
+            label(try_except_point)
         ])
 
         for c in node.handlers:
             extend(tpl, self.visit(c))
 
-        extend(tpl, 'case {0}:'.format(try_continue_point))
+        extend(tpl, label(try_continue_point))
         return tpl
 
     # Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
@@ -472,19 +470,19 @@ class JSCompiler(ast.NodeVisitor):
 
     # Pass
     def visit_Pass(self, node):
-        return ['// pass']
+        return '// pass'
 
     # Break
     def visit_Break(self, node):
         if not node.break_point:
             raise SyntaxError('Break not inside a loop block')
-        return '$ctx.next_state = {0}; continue;'.format(node.break_point)
+        return goto(node.break_point)
 
     # Continue
     def visit_Continue(self, node):
         if not node.loop_point:
             raise SyntaxError('Continue not inside a loop block')
-        return '$ctx.next_state = {0}; continue;'.format(node.loop_point)
+        return goto(node.loop_point)
 
     # BoolOp(boolop op, expr* values)
     def visit_BoolOp(self, node):
@@ -522,7 +520,7 @@ class JSCompiler(ast.NodeVisitor):
             '$ctx.next_state = {0};'.format(yield_point),
             '$ctx.result = $tmp;',
             'return $ctx;',
-            'case {0}:'.format(yield_point),
+            label(yield_point),
         ]
 
     #Compare(expr left, cmpop* ops, expr* comparators)
