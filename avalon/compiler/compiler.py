@@ -338,7 +338,7 @@ class JSCompiler(ast.NodeVisitor):
         target_node = ast.Name('iter', None)
         assign_node = ast.Assign([target_node], node.iter)
         assign_node.context = '$ctx.local'
-        extend(tpl, self.visit_Assign(assign_node))
+        extend(tpl, self.visit(assign_node))
 
         extend(tpl, [
             'case {0}:'.format(loop_point),
