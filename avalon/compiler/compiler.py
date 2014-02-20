@@ -83,7 +83,7 @@ class JSCompiler(ast.NodeVisitor):
         else:
             self.module = sys.modules.get(getattr(obj, '__module__', None))
 
-    def visit(self, node, context=None, inherit=True):
+    def visit(self, node, context=None, inherit=True, **kwargs):
         node.parent = self.node_chain[-1]
         node.context = getattr(node, 'context', context)
         if inherit and node.parent:
@@ -97,7 +97,8 @@ class JSCompiler(ast.NodeVisitor):
             node.break_point = None
 
         self.node_chain.append(node)
-        ret = super(JSCompiler, self).visit(node)
+        method = 'visit_' + node.__class__.__name__
+        ret = getattr(self, method, self.generic_visit)(node, **kwargs)
         self.node_chain.pop()
         return ret
 
@@ -237,7 +238,7 @@ class JSCompiler(ast.NodeVisitor):
         for c in node.body:
             if isinstance(c, ast.FunctionDef):
                 c.context = prototype
-                extend(tpl, self.visit_FunctionDef(c, bound=True))
+                extend(tpl, self.visit(c, bound=True))
 
         return tpl
 
