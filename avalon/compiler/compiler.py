@@ -12,7 +12,6 @@ import json
 import sys
 
 from types import ModuleType
-from .. import client, model
 
 
 class JSCode(object):
@@ -100,6 +99,8 @@ class JSCompiler(ast.NodeVisitor):
 
     def lookup(self, name):
         from . import types, builtins
+        from .. import client, model
+
         if name == 'object':
             return 'Object'
         elif name == 'print':
@@ -184,6 +185,8 @@ class JSCompiler(ast.NodeVisitor):
 
     #ClassDef(identifier name, expr* bases, stmt* body, expr* decorator_list)
     def visit_ClassDef(self, node):
+        from .. import client
+
         if len(node.bases) > 1:
             raise NotImplementedError('Multiple inheritance not supported')
 
