@@ -91,6 +91,10 @@ class JSCompiler(ast.NodeVisitor):
             node.loop_point = getattr(node.parent, 'loop_point', None)
             node.break_point = getattr(node.parent, 'break_point', None)
             node.context = node.context or node.parent.context
+        else:
+            node.yield_point = None
+            node.loop_point = None
+            node.break_point = None
 
         self.node_chain.append(node)
         ret = super(JSCompiler, self).visit(node)
@@ -328,8 +332,8 @@ class JSCompiler(ast.NodeVisitor):
             raise SyntaxError('For statement not inside a function block')
 
         tpl = []
-        loop_point = node.yield_point.create()
-        break_point = node.yield_point.create()
+        node.loop_point = loop_point = node.yield_point.create()
+        node.break_point = break_point = node.yield_point.create()
         try_except_point = node.yield_point.create()
         try_continue_point = node.yield_point.create()
 
@@ -459,6 +463,18 @@ class JSCompiler(ast.NodeVisitor):
     # Pass
     def visit_Pass(self, node):
         return ['// pass']
+
+    # Break
+    def visit_Break(self, node):
+        if not node.break_point:
+            raise SyntaxError('Break not inside a loop block')
+        return '$ctx.next_state = {0}; continue;'.format(node.break_point)
+
+    # Continue
+    def visit_Continue(self, node):
+        if not node.loop_point:
+            raise SyntaxError('Continue not inside a loop block')
+        return '$ctx.next_state = {0}; continue;'.format(node.loop_point)
 
     # BoolOp(boolop op, expr* values)
     def visit_BoolOp(self, node):
