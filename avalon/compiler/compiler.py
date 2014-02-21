@@ -16,10 +16,11 @@ from types import ModuleType
 
 class JSCode(object):
     def __getattr__(self, name):
-        pass
+        return self(name)
 
     def __call__(self, code):
-        pass
+        if code == 'Object':
+            return object
 
 JSCode = JSCode()
 
@@ -112,9 +113,7 @@ class JSCompiler(ast.NodeVisitor):
         from . import types, builtins
         from .. import client, model
 
-        if name == 'object':
-            return 'Object'
-        elif name == 'print':
+        if name == 'print':
             return name
 
         value = (getattr(types, name, None) or getattr(builtins, name, None) or

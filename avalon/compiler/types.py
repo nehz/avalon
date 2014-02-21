@@ -8,6 +8,15 @@
 Basic types
 """
 
+from .compiler import JSCode
+
+
+class object(JSCode.Object):
+    def toString(self):
+        if self.__repr__:
+            return self.__repr__()
+
+
 class generator(object):
     def __init__(self, ctx):
         self.ctx = ctx
