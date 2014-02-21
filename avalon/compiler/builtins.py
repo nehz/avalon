@@ -11,9 +11,14 @@ Built-in functions
 from .compiler import JSCode
 
 
-def getattr(obj, name, default_):
-    JSCode('return obj[name] || '
-           'obj.__getattr__ && obj.__getattr__(obj, name) || default_;')
+def getattr(obj, name, default_value):
+    if JSCode('obj[name] !== undefined'):
+        return obj[name]
+
+    if JSCode('obj.__getattr__'):
+        return JSCode('obj.__getattr__(obj, name)')
+
+    return default_value
 
 
 def range(start, stop, step):
