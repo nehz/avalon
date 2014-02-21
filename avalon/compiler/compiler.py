@@ -545,7 +545,7 @@ class JSCompiler(ast.NodeVisitor):
         if isinstance(node.func, ast.Attribute):
             func_context = self.visit(node.func.value)
         else:
-            func_context = 'this'
+            func_context = 'undefined'
 
         if getattr(self.module, func, None) is JSCode:
             return node.args[0].s
