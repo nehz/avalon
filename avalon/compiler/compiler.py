@@ -18,6 +18,9 @@ class JSCode(object):
     def __init__(self, code):
         pass
 
+    def __getattr__(self, name):
+        pass
+
 
 class BranchPoint(object):
     def __init__(self):
@@ -564,6 +567,9 @@ class JSCompiler(ast.NodeVisitor):
 
     # Attribute(expr value, identifier attr, expr_context ctx)
     def visit_Attribute(self, node):
+        if getattr(self.module, self.visit(node.value), None) is JSCode:
+            return node.attr
+
         if isinstance(node.ctx, ast.Load):
             tpl = 'getattr({0}, "{1}")'
         else:
