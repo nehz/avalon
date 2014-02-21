@@ -223,6 +223,9 @@ class JSCompiler(ast.NodeVisitor):
         extend(tpl, '  if (!(this instanceof {0})) return new {0}({1});'.
                format(node.name, ', '.join(args[1:])))
 
+        # Set any instance magic properties
+        extend(tpl, '  this.__class__ = {0};'.format(node.name))
+
         for c in node.body:
             if not isinstance(c, ast.FunctionDef):
                 extend(tpl, indent(self.visit(c)))
@@ -231,13 +234,17 @@ class JSCompiler(ast.NodeVisitor):
                format(', '.join(args[1:])))
         extend(tpl, '};')
 
+        # Set any class magic properties
+        extend(tpl, '{0}.{1}.__name__ = "{1}";'.format(context, node.name))
+
         # Class body
-        prototype = '%s.%s.prototype' % (context, node.name)
+        prototype = '{0}.{1}.prototype'.format(context, node.name)
+        base = self.visit(node.bases[0])
         if node.bases:
             extend(tpl, [
                 'var $F = function() {};',
-                '$F.prototype = %s.prototype;' % self.visit(node.bases[0]),
-                '%s.%s.prototype = new $F();' % (context, node.name)
+                '$F.prototype = {0}.prototype;'.format(base),
+                '{0} = new $F();'.format(prototype, node.name)
             ])
 
         for c in node.body:
