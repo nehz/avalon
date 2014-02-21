@@ -588,7 +588,7 @@ class JSCompiler(ast.NodeVisitor):
         if lookup:
             return lookup
         elif node.id == 'None':
-            return 'undefined'
+            return 'null'
         elif node.id == 'True':
             return 'true'
         elif node.id == 'False':
