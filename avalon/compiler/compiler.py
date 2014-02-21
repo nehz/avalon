@@ -15,11 +15,13 @@ from types import ModuleType
 
 
 class JSCode(object):
-    def __init__(self, code):
-        pass
-
     def __getattr__(self, name):
         pass
+
+    def __call__(self, code):
+        pass
+
+JSCode = JSCode()
 
 
 class BranchPoint(object):
@@ -567,14 +569,15 @@ class JSCompiler(ast.NodeVisitor):
 
     # Attribute(expr value, identifier attr, expr_context ctx)
     def visit_Attribute(self, node):
-        if getattr(self.module, self.visit(node.value), None) is JSCode:
+        value = self.visit(node.value)
+        if getattr(self.module, value, None) is JSCode:
             return node.attr
 
         if isinstance(node.ctx, ast.Load):
             tpl = 'getattr({0}, "{1}")'
         else:
             tpl = '{0}.{1}'
-        return tpl.format(self.visit(node.value), node.attr)
+        return tpl.format(value, node.attr)
 
     # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, node):
