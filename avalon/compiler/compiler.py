@@ -518,12 +518,12 @@ class JSCompiler(ast.NodeVisitor):
             raise SyntaxError('Yield not inside a function block')
 
         yield_point = node.branch.create()
+        value = self.visit(node.value) if node.value else 'null'
         return [
-            'var $tmp = {0};'.format(self.visit(node.value)),
+            '$ctx.result = {0};'.format(value),
             '$ctx.next_state = {0};'.format(yield_point),
-            '$ctx.result = $tmp;',
             'return $ctx;',
-            label(yield_point),
+            label(yield_point)
         ]
 
     #Compare(expr left, cmpop* ops, expr* comparators)
