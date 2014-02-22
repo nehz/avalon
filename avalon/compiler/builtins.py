@@ -9,6 +9,7 @@ Built-in functions
 """
 
 from .compiler import JSCode
+from .exceptions import *
 
 
 def getattr(obj, name, default_value):

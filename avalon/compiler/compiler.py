@@ -685,5 +685,5 @@ def js_compile(obj):
 
 
 def runtime():
-    from . import types, builtins
-    return js_compile(types) + js_compile(builtins)
+    from . import builtins, types, exceptions
+    return js_compile(builtins) + js_compile(types) + js_compile(exceptions)

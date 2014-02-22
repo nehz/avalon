@@ -9,6 +9,7 @@ Basic types
 """
 
 from .compiler import JSCode
+from .exceptions import *
 
 
 class object(JSCode.Object):
@@ -36,12 +37,4 @@ class generator(object):
 
     def close(self):
         pass
-
-
-class Exception(object):
-    pass
-
-
-class StopIteration(Exception):
-    pass
 
