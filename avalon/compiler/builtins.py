@@ -13,12 +13,15 @@ from .exceptions import *
 
 
 def getattr(obj, name, default_value):
-    if JSCode('obj[name] !== undefined'):
-        return obj[name]
+    if JSCode('obj'):
+        if JSCode('obj[name] !== undefined'):
+            return obj[name]
 
-    if JSCode('obj.__getattr__'):
-        return JSCode('obj.__getattr__(obj, name)')
+        if JSCode('obj.__getattr__'):
+            return JSCode('obj.__getattr__(obj, name)')
 
+    if JSCode('default_value === undefined'):
+        raise AttributeError(obj + " object has no attribute '" + name + "'")
     return default_value
 
 

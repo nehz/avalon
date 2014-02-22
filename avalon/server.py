@@ -237,7 +237,7 @@ def _index():
     # Bootstrap angular
     body.append(E.SCRIPT(
         '\n'.join([
-            'window._session = {};',
+            'window._session = {__getattr__: function() { return null; }};',
             'window.app = angular.module("app", ["ngAnimate", "angulate"]);',
             'window.app.run(["$rootScope", function($rootScope) {',
             '  $rootScope._session = window._session;',
