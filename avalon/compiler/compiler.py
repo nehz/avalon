@@ -574,7 +574,12 @@ class JSCompiler(ast.NodeVisitor):
             func_context = 'undefined'
 
         if getattr(self.module, func, None) is JSCode:
-            return node.args[0].s
+            if isinstance(node.args[0], ast.List):
+                return '\n'.join([c.s for c in node.args[0].elts])
+            elif isinstance(node.args[0], ast.Str):
+                return node.args[0].s
+            else:
+                raise SyntaxError('Invalid JSCode usage')
 
         if func == 'print':
             node.values = node.args
