@@ -16,6 +16,49 @@ class object(JSCode.Object):
     def toString(self):
         if self.__repr__:
             return self.__repr__()
+        return JSCode('Object.prototype.toString.call(this)')
+
+
+class array(object):
+    def __init__(self, iterable=None):
+        self.array = JSCode('[]')
+        if not iterable:
+            return
+
+        if JSCode('iterable instanceof Array'):
+            self.array = iterable
+            return
+
+        for i in iterable:
+            self.append(i)
+
+    def __repr__(self):
+        return JSCode('JSON.stringify(this.array)')
+
+    def __hash__(self):
+        raise TypeError("unhashable type: '" + self.__class__.__name__ + "'")
+
+    def __len__(self):
+        return JSCode('this.array.length')
+
+    def __getitem__(self, index):
+        return JSCode('this.array[index]')
+
+    def __iter__(self):
+        for i in range(self.array.length):
+            yield JSCode('this.array[$ctx.local.i]')
+
+    def __contains__(self, item):
+        return JSCode('this.array.indexOf(item) !== -1')
+
+    def count(self):
+        return self.__len__()
+
+    def index(self, item):
+        i = JSCode('this.array.indexOf(item)')
+        if i == -1:
+            raise ValueError(item + ' is not in list')
+        return i
 
 
 class generator(object):
@@ -33,8 +76,44 @@ class generator(object):
         return self.ctx['result']
 
     def throw(self):
-        pass
+        raise NotImplemented()
 
     def close(self):
-        pass
+        raise NotImplemented()
 
+
+class list(array):
+    def __setitem__(self, index, item):
+        JSCode('this.array[index] = item')
+
+    def __delitem__(self, index):
+        JSCode('this.array.splice(index, 1)')
+
+    def append(self, item):
+        JSCode('this.array.push(item)')
+
+    def extend(self, iterable):
+        if JSCode('iterable instanceof Array'):
+            JSCode('this.array.push.apply(this.array, iterable)')
+            return
+        for i in iterable:
+            self.append(i)
+
+    def insert(self, index, item):
+        JSCode('this.array.splice(index, 0, item)')
+
+    def pop(self):
+        return JSCode('this.array.pop()')
+
+    def remove(self, item):
+        JSCode('this.array.splice(this.index(item), 1)')
+
+    def reverse(self):
+        raise NotImplemented()
+
+    def sort(self):
+        raise NotImplemented()
+
+
+class tuple(array):
+    pass
