@@ -151,11 +151,9 @@ class JSCompiler(ast.NodeVisitor):
 
     # FunctionDef(
     #   identifier name, arguments args, stmt* body, expr* decorator_list)
-    def visit_FunctionDef(self, node, bound=False):
+    def visit_FunctionDef(self, node):
         context = node.context or 'this'
         args = [self.visit(a, inherit=False) for a in node.args.args]
-        arg0 = args[0] if bound else None
-        args = args[1:] if bound else args
         local = ', '.join(['{0}: {0}'.format(a) for a in args])
         args = ', '.join(args)
 
@@ -165,7 +163,6 @@ class JSCompiler(ast.NodeVisitor):
             '  var $exception;',
             '  var $ctx = {next_state: 0, ctx: this, try_stack: []};',
             '  $ctx.local = {{{0}}};'.format(local),
-            '  $ctx.local.{0} = this;'.format(arg0) if arg0 else '',
             '  $ctx.func = function($ctx) {',
             '    while (true) try { switch($ctx.next_state) {',
             '      case 0:'
@@ -209,19 +206,22 @@ class JSCompiler(ast.NodeVisitor):
                 if scope:
                     return self.visit_ClientScope(node, scope)
 
-        args = []
-        for c in node.body:
-            if isinstance(c, ast.FunctionDef) and c.name == '__init__':
-                args = [self.visit(a, inherit=False) for a in c.args.args]
-
         # Constructor
         node.name = self.safe_name(node.name)
-        extend(tpl, '{0}.{1} = function {1}({2}) {{'.format(
-            context, node.name, ', '.join(args[1:])))
+        extend(tpl, '{0}.{1} = function {1}() {{'.format(
+            context, node.name))
 
         # Allow object creation without using `new`
-        extend(tpl, '  if (!(this instanceof {0})) return new {0}({1});'.
-               format(node.name, ', '.join(args[1:])))
+        extend(tpl, indent([
+            'if(!(this instanceof {0}) || this.__class__) {{'.format(
+                node.name),
+            '  var $C = function(args) {',
+            '    return {0}.apply(this, args);'.format(node.name),
+            '  };',
+            '  $C.prototype = {0}.prototype;'.format(node.name),
+            '  return new $C(arguments);',
+            '}'
+        ]))
 
         # Set any instance magic properties
         extend(tpl, '  this.__class__ = {0};'.format(node.name))
@@ -230,28 +230,46 @@ class JSCompiler(ast.NodeVisitor):
             if not isinstance(c, ast.FunctionDef):
                 extend(tpl, indent(self.visit(c)))
 
-        extend(tpl, '  if (this.__init__) this.__init__({0});'.
-               format(', '.join(args[1:])))
-        extend(tpl, '};')
-
-        # Set any class magic properties
-        extend(tpl, '{0}.{1}.__name__ = "{1}";'.format(context, node.name))
+        extend(tpl, [
+            '  this.__bind__(this);',
+            '  if (this.__init__) this.__init__.apply(this, arguments);',
+            '};'
+        ])
 
         # Class body
-        prototype = '{0}.{1}.prototype'.format(context, node.name)
+        cls = '{0}.{1}'.format(context, node.name)
         base = self.visit(node.bases[0])
-        if node.bases:
-            extend(tpl, [
-                'var $F = function() {};',
-                '$F.prototype = {0}.prototype;'.format(base),
-                '{0} = new $F();'.format(prototype, node.name)
-            ])
 
+        # Inherit
+        extend(tpl, 'var $F = function() {};')
+        if node.bases:
+            extend(tpl, '$F.prototype = {0}.prototype;'.format(base))
+        extend(tpl, '{0}.prototype = new $F;'.format(cls))
+
+        # Set any class magic properties
+        assign = '{0}.prototype.{1} = {0}.{1} = "{2}"'
+        extend(tpl, assign.format(cls, '__name__', node.name))
+
+        # Methods
         for c in node.body:
             if isinstance(c, ast.FunctionDef):
-                c.context = prototype
-                extend(tpl, self.visit(c, bound=True))
+                extend(tpl, self.visit(c, '{0}.prototype.{1} = {0}'.format(
+                    cls, self.safe_name(c.name))))
 
+        # Method binder
+        extend(tpl, '{0}.prototype.{1} = {0}.{1} = function(self) {{'.format(
+            cls, '__bind__'))
+        if node.bases:
+            extend(tpl, indent(
+                'if ({0}.__bind__) {0}.__bind__(self);'.format(base)))
+
+        for c in node.body:
+            if not isinstance(c, ast.FunctionDef):
+                continue
+            extend(tpl, indent(
+                'self.{0} = method(self, {1}.{0});'.format(
+                    self.safe_name(c.name), node.name)))
+        extend(tpl, '};')
         return tpl
 
     def visit_ClientScope(self, node, scope):

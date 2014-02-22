@@ -25,6 +25,19 @@ def getattr(obj, name, default_value):
     return default_value
 
 
+def isinstance(obj, cls):
+    JSCode('return obj instanceof cls;')
+
+
+def method(obj, func):
+    return JSCode([
+        'function() {',
+        '  var args = Array.prototype.slice.call(arguments);',
+        '  return func.apply(this, [obj].concat(args)); ',
+        '}'
+    ])
+
+
 def range(start, stop, step):
     if not stop:
         stop = start
