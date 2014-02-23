@@ -63,6 +63,7 @@ _bundle_files = [
     )
 ]
 _router.DEFAULT_SETTINGS['sockjs_url'] = '/bundle/sockjs-0.3.4.min.js'
+_methods = {}
 
 # Fix mimetypes
 mimetypes.add_type('image/png', '.png', True)
@@ -94,6 +95,23 @@ def channel(route):
     return _d
 
 
+def method(func_or_str=None):
+    if callable(func_or_str):
+        method_name = '{0}.{1}'.format(
+            func_or_str.__module__, func_or_str.__name__)
+        _methods[method_name] = func_or_str
+        func_or_str.__server_method__ = method_name
+        return func_or_str
+
+    def _d(f):
+        method_name = func_or_str or '{0}.{1}'.format(
+            f.__module__, f.__name__)
+        _methods[method_name] = f
+        f.__server_method__ = method_name
+        return f
+    return _d
+
+
 @channel('/_avalon')
 def _server(request, message):
     message = json.loads(message)
@@ -105,6 +123,15 @@ def _server(request, message):
 
     if method == 'update':
         model[params[0]].update(query=params[1], **params[2])
+
+    if method == 'rpc':
+        if not _methods.get(params[0]):
+            raise ValueError('Method {0} not found'.format(params[0]))
+        request.send(json.dumps({
+            'id': message['id'],
+            'response': 'rpc',
+            'result': _methods[params[0]](*params[1:])
+        }))
 
 
 @get('/')

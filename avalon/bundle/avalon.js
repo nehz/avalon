@@ -69,6 +69,25 @@
     return JSON.stringify(obj);
   };
 
+  /**
+   * Call a server method
+   * @param {string} methodName method name
+   * @param {Array} args
+   * @returns {object} resume generator
+   */
+  avalon.call = function call(methodName, args) {
+    if (!avalon.channel || avalon.channel.readyState !== SockJS.OPEN) {
+      throw new RuntimeError('Not connected');
+    }
+    var id = rpc.id();
+    avalon.channel.send(JSON.stringify({
+      id: id,
+      method: 'rpc',
+      params: [methodName, args]
+    }));
+    return rpc.response[id] = Promise(id);
+  };
+
 
   (function connect() {
     var channel = avalon.channel = new SockJS('/_avalon');
@@ -113,6 +132,15 @@
           })();
 
           subscription.state = 'OPEN';
+          break;
+        case 'rpc':
+          if (!rpc.response[data.id]) {
+            console.error('Unknown rpc response id: ' + data.id);
+            break;
+          }
+          var promise = rpc.response[data.id];
+          promise.set_result(data.result);
+          schedule(promise);
           break;
         default:
           console.error('Unknown response: ' + data.response);

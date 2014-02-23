@@ -4,6 +4,7 @@
 # Licence:      See LICENSE
 #==============================================================================
 
+from .compiler import JSCode
 from .utils import attrfunc
 
 _functions = []
@@ -63,8 +64,23 @@ def event(name, selector=''):
     def d(f):
         f.event = (name, selector)
         return f
-
     return d
+
+
+@expose
+class Promise(object):
+    def __init__(self, _id):
+        self._id = _id
+        self.result = None
+        self.have_result = False
+        self.task = None
+
+    def set_result(self, value):
+        self.result = value
+        self.have_result = True
+
+    def set_task(self, task):
+        self.task = task
 
 
 @expose
@@ -73,6 +89,65 @@ def check(f, args):
         return f.apply(None, args)
     except:
         return None
+
+
+@expose
+def task(g):
+    if not isinstance(g, JSCode.generator):
+        return
+
+    chain = []
+    current = g
+    res = None
+    while current:
+        try:
+            res = current.send(res)
+        except StopIteration as e:
+            res = e.value
+            current = chain.pop()
+            continue
+
+        if isinstance(res, JSCode.generator):
+            chain.append(current)
+            current = res
+            res = None
+            continue
+
+        if hasattr(res, '__iter__'):
+            # TODO: use dict comprehension when available
+            res = list(res)
+            wait = {}
+            for i, r in enumerate(res):
+                if isinstance(r, Promise):
+                    wait[r] = i
+
+            for i in range(len(wait)):
+                d = yield
+                res[wait[d]] = d.result
+            res = wait
+            continue
+
+        if isinstance(res, Promise):
+            res = yield res
+
+
+@expose
+def schedule(g):
+    if isinstance(g, JSCode.generator):
+        try:
+            t = task(g)
+            promise = t.next()
+            if isinstance(promise, JSCode.Promise):
+                promise.set_task(t)
+        except StopIteration:
+            pass
+    elif isinstance(g, JSCode.Promise) and g.task:
+        try:
+            promise = g.task.send(g.result)
+            if isinstance(promise, JSCode.Promise):
+                promise.set_task(g.task)
+        except StopIteration:
+            pass
 
 
 def compiled():
