@@ -37,6 +37,10 @@ def getitem(obj, key):
     return JSCode('obj[key]')
 
 
+def hasattr(obj, name):
+    return JSCode('obj[name] !== undefined')
+
+
 def isinstance(obj, cls):
     JSCode('return obj instanceof cls;')
 
