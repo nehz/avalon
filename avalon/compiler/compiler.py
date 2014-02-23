@@ -215,11 +215,11 @@ class JSCompiler(ast.NodeVisitor):
         extend(tpl, indent([
             'if(!(this instanceof {0}) || this.__class__) {{'.format(
                 node.name),
-            '  var $C = function(args) {',
+            '  var $O = function(args) {',
             '    return {0}.apply(this, args);'.format(node.name),
             '  };',
-            '  $C.prototype = {0}.prototype;'.format(node.name),
-            '  return new $C(arguments);',
+            '  $O.prototype = {0}.prototype;'.format(node.name),
+            '  return new $O(arguments);',
             '}'
         ]))
 
@@ -241,10 +241,10 @@ class JSCompiler(ast.NodeVisitor):
         base = self.visit(node.bases[0])
 
         # Inherit
-        extend(tpl, 'var $F = function() {};')
+        extend(tpl, 'var $C = function() {};')
         if node.bases:
-            extend(tpl, '$F.prototype = {0}.prototype;'.format(base))
-        extend(tpl, '{0}.prototype = new $F;'.format(cls))
+            extend(tpl, '$C.prototype = {0}.prototype;'.format(base))
+        extend(tpl, '{0}.prototype = new $C;'.format(cls))
 
         # Set any class magic properties
         assign = '{0}.prototype.{1} = {0}.{1} = "{2}"'
