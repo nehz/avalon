@@ -170,7 +170,7 @@
     channel.send = function send(data) {
       // Use `avalon.channel` rather than `this` because we always want to
       // refer to the currently active channel
-      (function() {
+      (function send() {
         if (avalon.channel.readyState === SockJS.OPEN) {
           avalon.channel._send(data);
           return
