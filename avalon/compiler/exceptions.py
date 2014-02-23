@@ -13,7 +13,7 @@ class Exception(object):
         self.message = message or ''
 
     def __repr__(self):
-        return self.__name__ + ':' + self.message
+        return self.__name__ + ': ' + self.message
 
 
 class StopIteration(Exception):
