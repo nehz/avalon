@@ -421,7 +421,7 @@ class JSCompiler(ast.NodeVisitor):
 
         extend(tpl, [
             label(loop_point),
-            'if (!({0})) {{ {1} }}'.format(
+            'if (!bool({0})) {{ {1} }}'.format(
                 self.visit(node.test), goto(break_point))
         ])
 
