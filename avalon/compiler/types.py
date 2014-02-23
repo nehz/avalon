@@ -77,9 +77,9 @@ class generator(object):
 
     def send(self, value):
         self.ctx['send'] = value
-        self.ctx['func'].call(self.ctx['ctx'], self.ctx)
+        ret = self.ctx['func'].call(self.ctx['ctx'], self.ctx)
         if self.ctx['end']:
-            raise StopIteration()
+            raise StopIteration(ret)
         return self.ctx['result']
 
     def throw(self):

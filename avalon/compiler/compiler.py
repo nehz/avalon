@@ -144,10 +144,16 @@ class JSCompiler(ast.NodeVisitor):
 
     # Return(expr? value)
     def visit_Return(self, node):
-        if node.value:
-            return 'return {0};'.format(self.visit(node.value))
+        if not node.branch:
+            raise SyntaxError('Return statement not inside a function block')
+
+        tpl = ['$ctx.end = true;']
+        value = self.visit(node.value) if node.value else None
+        if value is not None:
+            extend(tpl, 'return {0};', value)
         else:
-            return 'return;'
+            extend(tpl, 'return null;')
+        return tpl
 
     # FunctionDef(
     #   identifier name, arguments args, stmt* body, expr* decorator_list)
@@ -173,7 +179,7 @@ class JSCompiler(ast.NodeVisitor):
             extend(tpl, indent(self.visit(c, '$ctx.local'), level=3))
 
         extend(tpl, [
-            '      default: $ctx.end = true; return;',
+            '      default: $ctx.end = true; return null;',
             '    }} catch($e) {',
             '      $exception = $e;',
             '      $ctx.next_state = $ctx.try_stack.pop();',

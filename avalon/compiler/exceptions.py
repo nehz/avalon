@@ -17,7 +17,8 @@ class Exception(object):
 
 
 class StopIteration(Exception):
-    pass
+    def __init__(self, value=None):
+        self.message = self.value = value
 
 
 class RuntimeError(Exception):
