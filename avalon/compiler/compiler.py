@@ -223,6 +223,9 @@ class JSCompiler(ast.NodeVisitor):
             '}'
         ]))
 
+        # Set object id
+        extend(tpl, '  this.oid = object.oid = object.oid + 1;')
+
         # Set any instance magic properties
         extend(tpl, '  this.__class__ = {0};'.format(node.name))
 

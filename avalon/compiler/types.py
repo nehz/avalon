@@ -13,9 +13,14 @@ from .exceptions import *
 
 
 class object(JSCode.Object):
+    def __hash__(self):
+        return self.oid
+
     def toString(self):
         JSCode('if (self && self.__repr__) return self.__repr__()')
         return JSCode('Object.prototype.toString.call(this)')
+
+object.oid = 0
 
 
 class array(object):
