@@ -498,8 +498,10 @@ class JSCompiler(ast.NodeVisitor):
         for c in node.handlers:
             extend(tpl, self.visit(c))
 
-        extend(tpl, label(try_continue_point))
-        return tpl
+        return extend(tpl, [
+            'if ($exception !== undefined) throw $exception;',
+            label(try_continue_point)
+        ])
 
     # Try(stmt* body, excepthandler* handlers, stmt* orelse, stmt* finalbody)
     def visit_Try(self, node):
