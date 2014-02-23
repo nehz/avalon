@@ -12,6 +12,11 @@ from .compiler import JSCode
 from .exceptions import *
 
 
+def bool(obj):
+    JSCode('if (obj && obj.__nonzero__) return obj.__nonzero__()')
+    return JSCode('Boolean(obj)')
+
+
 def getattr(obj, name, default_value):
     if JSCode('obj'):
         if JSCode('obj[name] !== undefined'):

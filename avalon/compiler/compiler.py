@@ -447,7 +447,7 @@ class JSCompiler(ast.NodeVisitor):
         else_point = node.branch.create()
         continue_point = node.branch.create()
         tpl = [
-            'if (!({0})) {{ {1} }}'.format(
+            'if (!bool({0})) {{ {1} }}'.format(
                 self.visit(node.test), goto(else_point))
         ]
 

@@ -32,24 +32,27 @@ class array(object):
         for i in iterable:
             self.append(i)
 
-    def __repr__(self):
-        return JSCode('JSON.stringify(this.array)')
-
-    def __hash__(self):
-        raise TypeError("unhashable type: '" + self.__class__.__name__ + "'")
-
-    def __len__(self):
-        return JSCode('this.array.length')
+    def __contains__(self, item):
+        return JSCode('this.array.indexOf(item) !== -1')
 
     def __getitem__(self, index):
         return JSCode('this.array[index]')
+
+    def __hash__(self):
+        raise TypeError("unhashable type: '" + self.__class__.__name__ + "'")
 
     def __iter__(self):
         for i in range(self.array.length):
             yield JSCode('this.array[$ctx.local.i]')
 
-    def __contains__(self, item):
-        return JSCode('this.array.indexOf(item) !== -1')
+    def __len__(self):
+        return JSCode('this.array.length')
+
+    def __nonzero__(self):
+        return JSCode('this.array.length > 0')
+
+    def __repr__(self):
+        return JSCode('JSON.stringify(this.array)')
 
     def count(self):
         return self.__len__()
@@ -83,11 +86,11 @@ class generator(object):
 
 
 class list(array):
-    def __setitem__(self, index, item):
-        JSCode('this.array[index] = item')
-
     def __delitem__(self, index):
         JSCode('this.array.splice(index, 1)')
+
+    def __setitem__(self, index, item):
+        JSCode('this.array[index] = item')
 
     def append(self, item):
         JSCode('this.array.push(item)')
