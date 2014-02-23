@@ -24,7 +24,9 @@ def getattr(obj, name, default_value):
       if (obj.__getattr__) return obj.__getattr__(obj, name);
     }
     if (default_value === undefined) {
-        throw AttributeError(obj + " obj has no attribute '" + name + "'");
+      var objName = obj && obj.__name__;
+      throw AttributeError(
+        "'" + objName + "' object has no attribute '" + name + "'");
     }
     return default_value;
     ''')
