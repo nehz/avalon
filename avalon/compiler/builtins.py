@@ -52,3 +52,15 @@ def range(start, stop, step):
     while start < stop:
         yield start
         start += step
+
+
+def setattr(obj, name, value):
+    if JSCode('obj.__setattr__'):
+        return JSCode('obj.__setattr__(obj, name, value)')
+    JSCode('obj[name] = value')
+
+
+def setitem(obj, key, value):
+    if JSCode('obj.__setitem__'):
+        return JSCode('obj.__setitem__(obj, key, value)')
+    JSCode('obj[key] = value')

@@ -332,23 +332,40 @@ class JSCompiler(ast.NodeVisitor):
         for target in node.targets:
             if isinstance(target, ast.Tuple):
                 for i, t in enumerate(target.elts):
+                    if (isinstance(t, ast.Attribute) or
+                            isinstance(t, ast.Subscript)):
+                        tpl.append(self.visit(t, value='$assign[%s]' % i))
+                        continue
+
                     t = self.visit(t)
                     if not node.context:
-                        tpl.append('var {0} = $assign[{1}];'.format(t, i))
+                        tpl.append('var {0};')
                     tpl.append('{0} = $assign[{1}];'.format(t, i))
             else:
+                if (isinstance(target, ast.Attribute) or
+                        isinstance(target, ast.Subscript)):
+                    tpl.append(self.visit(target, value='$assign'))
+                    continue
+
                 target = self.visit(target)
                 if not node.context:
-                    tpl.append('var {0} = $assign;'.format(target))
+                    tpl.append('var {0};')
                 tpl.append('{0} = $assign;'.format(target))
 
         return tpl
 
     # AugAssign(expr target, operator op, expr value)
     def visit_AugAssign(self, node):
-        target = self.visit(node.target)
         op = JSCompiler.BIN_OP[type(node.op)]
         value = self.visit(node.value)
+
+        if (isinstance(node.target, ast.Attribute) or
+                isinstance(node.target, ast.Subscript)):
+            item = self.visit(node.target, get=True)
+            assign = '{0} {1} {2}'.format(item, op, value)
+            return self.visit(node.target, value=assign)
+
+        target = self.visit(node.target)
         return '{0} {1}= {2};'.format(target, op, value)
 
     # For(expr target, expr iter, stmt* body, stmt* orelse)
@@ -597,22 +614,23 @@ class JSCompiler(ast.NodeVisitor):
         return '"{0}"'.format(node.s).replace('\n', '\\n\\\n')
 
     # Attribute(expr value, identifier attr, expr_context ctx)
-    def visit_Attribute(self, node):
-        value = self.visit(node.value)
-        if getattr(self.module, value, None) is JSCode:
+    def visit_Attribute(self, node, value=None, get=False):
+        obj = self.visit(node.value)
+        if getattr(self.module, obj, None) is JSCode:
             return node.attr
-
-        if isinstance(node.ctx, ast.Load):
-            tpl = 'getattr({0}, "{1}")'
+        if get or isinstance(node.ctx, ast.Load):
+            return 'getattr({0}, "{1}")'.format(obj, node.attr)
         else:
-            tpl = '{0}.{1}'
-        return tpl.format(value, node.attr)
+            return 'setattr({0}, "{1}", {2})'.format(obj, node.attr, value)
 
     # Subscript(expr value, slice slice, expr_context ctx)
-    def visit_Subscript(self, node):
-        value = self.visit(node.value)
+    def visit_Subscript(self, node, value=None, get=False):
+        obj = self.visit(node.value)
         index = self.visit(node.slice)
-        return '{0}[{1}]'.format(value, index)
+        if get or isinstance(node.ctx, ast.Load):
+            return 'getitem({0}, {1})'.format(obj, index)
+        else:
+            return 'setitem({0}, {1}, {2})'.format(obj, index, value)
 
     # Name(identifier id, expr_context ctx)
     def visit_Name(self, node):
@@ -633,11 +651,13 @@ class JSCompiler(ast.NodeVisitor):
 
     # List(expr* elts, expr_context ctx)
     def visit_List(self, node):
-        return '[{0}]'.format(', '.join([self.visit(c) for c in node.elts]))
+        return 'list([{0}])'.format(
+            ', '.join([self.visit(c) for c in node.elts]))
 
     # Tuple(expr* elts, expr_context ctx)
     def visit_Tuple(self, node):
-        return '[{0}]'.format(', '.join([self.visit(c) for c in node.elts]))
+        return 'tuple([{0}])'.format(
+            ', '.join([self.visit(c) for c in node.elts]))
 
     # Index(expr value)
     def visit_Index(self, node):
