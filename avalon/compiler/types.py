@@ -14,8 +14,7 @@ from .exceptions import *
 
 class object(JSCode.Object):
     def toString(self):
-        if self.__repr__:
-            return self.__repr__()
+        JSCode('if (self && self.__repr__) return self.__repr__()')
         return JSCode('Object.prototype.toString.call(this)')
 
 
