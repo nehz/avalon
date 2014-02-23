@@ -693,8 +693,14 @@ def indent(lines, spaces=2, level=1):
         return '{0}{1}'.format(spaces, lines)
 
 
-def extend(template, lines):
+def extend(template, lines, format_string=None):
     if isinstance(lines, list):
+        if format_string:
+            for i, line in enumerate(lines):
+                try:
+                    lines[i] = line.format(format_string)
+                except ValueError:
+                    pass
         template.extend(lines)
     else:
         template.append(lines)
