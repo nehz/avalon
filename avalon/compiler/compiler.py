@@ -681,6 +681,12 @@ class JSCompiler(ast.NodeVisitor):
         else:
             tpl.append('if ($exception) {')
 
+        if node.name:
+            if node.context:
+                extend(tpl, '  {0}.{1} = $exception;', node.context, node.name)
+            else:
+                extend(tpl, '  var {0} = $exception;', node.name)
+
         for c in node.body:
             extend(tpl, indent(self.visit(c)))
 
