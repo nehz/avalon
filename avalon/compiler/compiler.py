@@ -620,8 +620,10 @@ class JSCompiler(ast.NodeVisitor):
             return node.attr
         if get or isinstance(node.ctx, ast.Load):
             return 'getattr({0}, "{1}")'.format(obj, node.attr)
-        else:
+        elif isinstance(node.ctx, ast.Store):
             return 'setattr({0}, "{1}", {2})'.format(obj, node.attr, value)
+        else:
+            raise SyntaxError('Invalid ctx for attribute')
 
     # Subscript(expr value, slice slice, expr_context ctx)
     def visit_Subscript(self, node, value=None, get=False):
@@ -629,8 +631,10 @@ class JSCompiler(ast.NodeVisitor):
         index = self.visit(node.slice)
         if get or isinstance(node.ctx, ast.Load):
             return 'getitem({0}, {1})'.format(obj, index)
-        else:
+        elif isinstance(node.ctx, ast.Store):
             return 'setitem({0}, {1}, {2})'.format(obj, index, value)
+        else:
+            raise SyntaxError('Invaid ctx for subscript')
 
     # Name(identifier id, expr_context ctx)
     def visit_Name(self, node):
