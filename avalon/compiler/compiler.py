@@ -114,9 +114,9 @@ class JSCompiler(ast.NodeVisitor):
         self.node_chain.append(node)
         method = 'visit_' + node.__class__.__name__
         method_func = getattr(self, method, self.generic_visit)
-        try:
+        if len(inspect.getargspec(method_func).args) == 3:
             ret = method_func(node, NodeOptions(kwargs))
-        except TypeError:
+        else:
             ret = method_func(node)
         self.node_chain.pop()
         return ret
