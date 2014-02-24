@@ -9,7 +9,6 @@ Basic types
 """
 
 from .compiler import JSCode
-from .exceptions import *
 
 
 class object(JSCode.Object):

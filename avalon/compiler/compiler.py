@@ -110,13 +110,21 @@ class JSCompiler(ast.NodeVisitor):
         return ret
 
     def lookup(self, name):
-        from . import types, builtins
+        from . import builtins, exceptions, types
         from .. import client, model
 
         if name == 'print':
             return name
+        elif name == 'None':
+            return 'null'
+        elif name == 'True':
+            return 'true'
+        elif name == 'False':
+            return 'false'
 
-        value = (getattr(types, name, None) or getattr(builtins, name, None) or
+        value = (getattr(builtins, name, None) or
+                 getattr(exceptions, name, None) or
+                 getattr(types, name, None) or
                  getattr(self.module, name, None))
 
         if value is None:
@@ -652,13 +660,6 @@ class JSCompiler(ast.NodeVisitor):
         lookup = self.lookup(node.id)
         if lookup:
             return lookup
-        elif node.id == 'None':
-            return 'null'
-        elif node.id == 'True':
-            return 'true'
-        elif node.id == 'False':
-            return 'false'
-
         if node.context:
             return '{0}.{1}'.format(node.context, node.id)
         else:
