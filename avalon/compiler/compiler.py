@@ -42,6 +42,14 @@ class YieldSearch(ast.NodeVisitor):
         pass
 
 
+class NodeOptions(object):
+    def __init__(self, options):
+        self.__dict__.update(options)
+
+    def __getattr__(self, name):
+        return None
+
+
 class JSCompiler(ast.NodeVisitor):
     KEYWORDS = ['default', 'switch', 'throw']
 
@@ -105,7 +113,11 @@ class JSCompiler(ast.NodeVisitor):
 
         self.node_chain.append(node)
         method = 'visit_' + node.__class__.__name__
-        ret = getattr(self, method, self.generic_visit)(node, **kwargs)
+        method_func = getattr(self, method, self.generic_visit)
+        try:
+            ret = method_func(node, NodeOptions(kwargs))
+        except TypeError:
+            ret = method_func(node)
         self.node_chain.pop()
         return ret
 
@@ -633,25 +645,26 @@ class JSCompiler(ast.NodeVisitor):
         return '"{0}"'.format(node.s).replace('\n', '\\n\\\n')
 
     # Attribute(expr value, identifier attr, expr_context ctx)
-    def visit_Attribute(self, node, value=None, get=False):
+    def visit_Attribute(self, node, options):
         obj = self.visit(node.value)
+        attr = node.attr
         if getattr(self.module, obj, None) is JSCode:
-            return node.attr
-        if get or isinstance(node.ctx, ast.Load):
-            return 'getattr({0}, "{1}")'.format(obj, node.attr)
+            return attr
+        if options.get or isinstance(node.ctx, ast.Load):
+            return 'getattr({0}, "{1}")'.format(obj, attr)
         elif isinstance(node.ctx, ast.Store):
-            return 'setattr({0}, "{1}", {2})'.format(obj, node.attr, value)
+            return 'setattr({0}, "{1}", {2})'.format(obj, attr, options.value)
         else:
             raise SyntaxError('Invalid ctx for attribute')
 
     # Subscript(expr value, slice slice, expr_context ctx)
-    def visit_Subscript(self, node, value=None, get=False):
+    def visit_Subscript(self, node, options):
         obj = self.visit(node.value)
         index = self.visit(node.slice)
-        if get or isinstance(node.ctx, ast.Load):
+        if options.get or isinstance(node.ctx, ast.Load):
             return 'getitem({0}, {1})'.format(obj, index)
         elif isinstance(node.ctx, ast.Store):
-            return 'setitem({0}, {1}, {2})'.format(obj, index, value)
+            return 'setitem({0}, {1}, {2})'.format(obj, index, options.value)
         else:
             raise SyntaxError('Invaid ctx for subscript')
 
