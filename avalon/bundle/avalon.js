@@ -9,7 +9,10 @@
   var VERSION = [0, 0, 1];
   var MAX_ID = 4294967295;
 
-  var avalon = globals.avalon = {version: VERSION};
+  var avalon = globals.avalon = {
+    session : {__getattr__: function() { return null; }},
+    version: VERSION
+  };
   var rpc = {
     _id: 0,
     id: function() { return this._id = (this._id + 1) % MAX_ID; },

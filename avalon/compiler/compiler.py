@@ -142,7 +142,7 @@ class JSCompiler(ast.NodeVisitor):
         if value is None:
             return None
         elif value is client.session:
-            return '_session'
+            return 'avalon.session'
         elif value is model.model:
             return 'avalon.model'
         return self.safe_name(name)
