@@ -444,7 +444,7 @@ class JSCompiler(ast.NodeVisitor):
             '$ctx.try_stack.pop();',
             goto(try_continue_point),
             label(try_except_point),
-            'if ($exception instanceof StopIteration) {{ {0} }}'.format(
+            'if ($exception instanceof StopIteration) {0};'.format(
                 goto(break_point)),
             'throw $exception;',
             label(try_continue_point)
@@ -472,7 +472,7 @@ class JSCompiler(ast.NodeVisitor):
 
         extend(tpl, [
             label(loop_point),
-            'if (!bool({0})) {{ {1} }}'.format(
+            'if (!bool({0})) {1};'.format(
                 self.visit(node.test), goto(break_point))
         ])
 
@@ -498,7 +498,7 @@ class JSCompiler(ast.NodeVisitor):
         else_point = node.branch.create()
         continue_point = node.branch.create()
         tpl = [
-            'if (!bool({0})) {{ {1} }}'.format(
+            'if (!bool({0})) {1};'.format(
                 self.visit(node.test), goto(else_point))
         ]
 
@@ -767,7 +767,7 @@ def extend(template, lines, *format_params):
 
 
 def goto(point, state='$ctx.next_state'):
-    return '{0} = {1}; continue;'.format(state, point)
+    return '{{ {0} = {1}; continue; }}'.format(state, point)
 
 
 def label(point):
