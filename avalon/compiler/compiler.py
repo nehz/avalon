@@ -177,15 +177,19 @@ class JSCompiler(ast.NodeVisitor):
 
     # FunctionDef(
     #   identifier name, arguments args, stmt* body, expr* decorator_list)
-    def visit_FunctionDef(self, node):
-        context = node.context or 'this'
+    def visit_FunctionDef(self, node, options):
         args = [self.visit(a, inherit=False) for a in node.args.args]
         local = ', '.join(['{0}: {0}'.format(a) for a in args])
         args = ', '.join(args)
-
         node.name = self.safe_name(node.name)
+
+        if node.context:
+            assign = '{0}.{1}'.format(node.context, node.name)
+        else:
+            assign = 'var {0}'.format(node.name)
+
         tpl = [
-            '{0}.{1} = function {1}({2}) {{'.format(context, node.name, args),
+            '{0} = function {1}({2}) {{'.format(assign, node.name, args),
             '  var $exception;',
             '  var $ctx = {next_state: 0, ctx: this, try_stack: []};',
             '  $ctx.local = {{{0}}};'.format(local),
@@ -224,7 +228,6 @@ class JSCompiler(ast.NodeVisitor):
             raise NotImplementedError('Multiple inheritance not supported')
 
         tpl = []
-        context = node.context or 'this'
         if node.bases:
             if isinstance(node.bases[0], ast.Attribute):
                 scope_name = node.bases[0].attr
@@ -232,10 +235,14 @@ class JSCompiler(ast.NodeVisitor):
                 if scope:
                     return self.visit_ClientScope(node, scope)
 
+        if node.context:
+            assign = '{0}.{1}'.format(node.context, node.name)
+        else:
+            assign = 'var {0}'.format(node.name)
+
         # Constructor
         node.name = self.safe_name(node.name)
-        extend(tpl, '{0}.{1} = function {1}() {{'.format(
-            context, node.name))
+        extend(tpl, '{0} = function {1}() {{'.format(assign, node.name))
 
         # Allow object creation without using `new`
         extend(tpl, indent([
@@ -266,8 +273,11 @@ class JSCompiler(ast.NodeVisitor):
         ])
 
         # Class body
-        cls = '{0}.{1}'.format(context, node.name)
         base = self.visit(node.bases[0])
+        if node.context:
+            cls = assign
+        else:
+            cls = node.name
 
         # Inherit
         extend(tpl, 'var $C = function() {};')
@@ -302,12 +312,15 @@ class JSCompiler(ast.NodeVisitor):
         return tpl
 
     def visit_ClientScope(self, node, scope):
-        context = node.context or 'this'
         inject = ['$scope', '$element']
-        tpl = [
-            '{0}.{1} = function {2}({3}) {{'.format(
-                context, scope['name'], node.name, ', '.join(inject))
-        ]
+
+        if node.context:
+            assign = '{0}.{1}'.format(node.context, scope['name'])
+        else:
+            assign = 'var {0}'.format(scope['name'])
+
+        args = ', '.join(inject)
+        tpl = ['{0} = function {1}({2}) {{'.format(assign, node.name, args)]
 
         for c in node.body:
             extend(tpl, indent(self.visit(c, '$scope')))
@@ -344,10 +357,16 @@ class JSCompiler(ast.NodeVisitor):
             '  __init__($scope);',
             '}'
         ]))
+
+        if node.context:
+            scope = assign
+        else:
+            scope = scope['name']
+
         return extend(tpl, [
-            '};', '{0}.{1}.$inject = {2};'.format(
-                context, scope['name'], json.dumps(inject))
-        ])
+            '};',
+            '{0}.$inject = {1};'
+        ], scope, json.dumps(inject))
 
     # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
