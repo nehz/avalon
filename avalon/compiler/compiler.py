@@ -97,9 +97,12 @@ class JSCompiler(ast.NodeVisitor):
         else:
             self.module = sys.modules.get(getattr(obj, '__module__', None))
 
-    def visit(self, node, context=None, inherit=True, **kwargs):
+    def visit(self, node, context=False, inherit=True, **kwargs):
         node.parent = self.node_chain[-1]
-        node.context = getattr(node, 'context', context)
+        if context is not False:
+            node.context = context
+        else:
+            node.context = getattr(node, 'context', None)
 
         if inherit and node.parent:
             node.branch = getattr(node.parent, 'branch', None)
