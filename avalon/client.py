@@ -30,8 +30,6 @@ class ScopeType(type):
                 ],
                 'name': scope_name
             }
-
-            scope = type.__new__(mcs, name, bases, classdict)
             expose(scope)
 
         return scope
