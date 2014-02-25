@@ -108,11 +108,13 @@ class JSCompiler(ast.NodeVisitor):
             node.branch = getattr(node.parent, 'branch', None)
             node.loop_point = getattr(node.parent, 'loop_point', None)
             node.break_point = getattr(node.parent, 'break_point', None)
+            node.auto_yield = getattr(node.parent, 'auto_yield', False)
             node.context = node.context or node.parent.context
         else:
             node.branch = None
             node.loop_point = None
             node.break_point = None
+            node.auto_yield = False
 
         self.node_chain.append(node)
         method = 'visit_' + node.__class__.__name__
@@ -148,6 +150,10 @@ class JSCompiler(ast.NodeVisitor):
             return 'avalon.session'
         elif value is model.model:
             return 'avalon.model'
+        elif hasattr(value, '__server_method__'):
+            method_name = value.__server_method__
+            if method_name:
+                return 'avalon.method("{0}")'.format(method_name)
         return self.safe_name(name)
 
     def safe_name(self, name):
@@ -180,7 +186,7 @@ class JSCompiler(ast.NodeVisitor):
 
     # FunctionDef(
     #   identifier name, arguments args, stmt* body, expr* decorator_list)
-    def visit_FunctionDef(self, node, options):
+    def visit_FunctionDef(self, node):
         args = [self.visit(a, inherit=False) for a in node.args.args]
         local = ', '.join(['{0}: {0}'.format(a) for a in args])
         args = ', '.join(args)
@@ -216,7 +222,7 @@ class JSCompiler(ast.NodeVisitor):
             '  }',
         ])
 
-        if is_generator(node):
+        if node.auto_yield or is_generator(node):
             extend(tpl, indent('return new generator($ctx);'))
         else:
             extend(tpl, indent('return $ctx.func.call(this, $ctx);'))
@@ -323,24 +329,45 @@ class JSCompiler(ast.NodeVisitor):
             assign = 'var {0}'.format(scope['name'])
 
         args = ', '.join(inject)
-        tpl = ['{0} = function {1}({2}) {{'.format(assign, node.name, args)]
+        tpl = extend([], [
+            '{0} = function {1}({2}) {{',
+            '  var methods = {{}};'
+        ], assign, node.name, args)
 
         for c in node.body:
-            extend(tpl, indent(self.visit(c, '$scope')))
+            # Process non function nodes and non-event functions
+            node.auto_yield = False
+            if (not isinstance(c, ast.FunctionDef) or
+                    not scope['events'].get(c.name)):
+                extend(tpl, indent(self.visit(c, '$scope')))
+                continue
 
-        # Events
-        tpl_on = '\n'.join(indent([
-            '$element.on("{0}", "{1}", function eventHandler(e) {{',
-            '  var t = angular.element(e.target).scope();',
-            '  $scope.$apply(function() {{ $scope.{2}($scope, t, e) }});',
-            '}})'
-        ]))
+            # TODO: Yield for computed function
+            # TODO: Yield function should only rerun for new digest
+            # TODO: Yield function return values
 
-        extend(tpl, [tpl_on.format(*e) for e in scope['events']])
+            # Original generator function
+            node.auto_yield = True
+            extend(tpl, indent(self.visit(c, 'methods')))
+
+            event = scope['events'][c.name]
+            extend(tpl, indent([
+                # Function scheduler shim
+                '$scope.{0} = function scheduler() {{',
+                '  schedule(methods.{0}.apply(undefined, arguments));',
+                '};',
+
+                # Events
+                '$element.on("{1}", "{2}", function eventHandler(e) {{',
+                '  var t = angular.element(e.target).scope();',
+                '  $scope.$apply(function() {{ $scope.{3}($scope, t, e) }});',
+                '}});'
+            ]), c.name, event[0], event[1], c.name)
+
         extend(tpl, indent([
             '$scope.$on("$destroy", function() {',
             '  $element.off();',
-            '})'
+            '});'
         ]))
 
         # Support repeat scope
@@ -349,7 +376,7 @@ class JSCompiler(ast.NodeVisitor):
             '$scope.__getattr__ = function __getattr__(self, value) {',
             '  return self.$item && self.$item[value] ||',
             '    $getattr && $getattr(self, value);',
-            '}'
+            '};'
         ]))
 
         # Scope constructor
@@ -613,6 +640,9 @@ class JSCompiler(ast.NodeVisitor):
         if not node.branch:
             raise SyntaxError('Yield not inside a function block')
 
+        # Already yielding, so we do not need to auto yield
+        node.auto_yield = False
+
         yield_point = node.branch.create()
         value = self.visit(node.value) if node.value else 'null'
         return [
@@ -637,6 +667,9 @@ class JSCompiler(ast.NodeVisitor):
     # Call(
     #   expr func, expr* args, keyword* keywords, xpr? starargs, expr? kwargs)
     def visit_Call(self, node):
+        if node.auto_yield:
+            return self.visit(ast.Yield(node))
+
         func = self.visit(node.func)
         if isinstance(node.func, ast.Attribute):
             func_context = self.visit(node.func.value)

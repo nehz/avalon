@@ -97,15 +97,23 @@ def channel(route):
 
 def method(func_or_str=None):
     if callable(func_or_str):
-        method_name = '{0}.{1}'.format(
-            func_or_str.__module__, func_or_str.__name__)
-        _methods[method_name] = func_or_str
-        func_or_str.__server_method__ = method_name
-        return func_or_str
+        f = func_or_str
+        method_name = '{0}.{1}'.format(f.__module__, f.__name__)
+
+        assert method_name not in _methods, \
+            "Server method '{0}' already exists".format(method_name)
+
+        _methods[method_name] = f
+        f.__server_method__ = method_name
+        return f
 
     def _d(f):
         method_name = func_or_str or '{0}.{1}'.format(
             f.__module__, f.__name__)
+
+        assert method_name not in _methods, \
+            "Server method '{0}' already exists".format(method_name)
+
         _methods[method_name] = f
         f.__server_method__ = method_name
         return f

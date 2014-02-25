@@ -91,6 +91,17 @@
     return rpc.response[id] = Promise(id);
   };
 
+  /**
+   * Create a server method shim
+   * @param {string} methodName method name
+   * @returns {function} method shim
+   */
+  avalon.method = function method(methodName) {
+    return function shim() {
+      avalon.call(methodName, Array.prototype.slice.call(arguments));
+    };
+  };
+
 
   (function connect() {
     var channel = avalon.channel = new SockJS('/_avalon');

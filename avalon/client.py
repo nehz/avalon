@@ -23,11 +23,11 @@ class ScopeType(type):
                 'Scope.{0} already defined'.format(scope_name)
 
             _scopes[scope_name] = {
-                'events': [
-                    (f.event[0], f.event[1], f_name)
+                'events': {
+                    f_name: f.event
                     for f_name, f in classdict.items()
                     if getattr(f, 'event', None)
-                ],
+                },
                 'name': scope_name
             }
             expose(scope)
