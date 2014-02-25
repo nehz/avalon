@@ -187,25 +187,25 @@ class JSCompiler(ast.NodeVisitor):
     # FunctionDef(
     #   identifier name, arguments args, stmt* body, expr* decorator_list)
     def visit_FunctionDef(self, node):
+        tpl = []
+        name = self.visit(ast.Name(node.name, ast.Store))
+        if not node.context:
+            extend(tpl, 'var {0};'.format(name))
+
         args = [self.visit(a, inherit=False) for a in node.args.args]
         local = ', '.join(['{0}: {0}'.format(a) for a in args])
         args = ', '.join(args)
         node.name = self.safe_name(node.name)
 
-        if node.context:
-            assign = '{0}.{1}'.format(node.context, node.name)
-        else:
-            assign = 'var {0}'.format(node.name)
-
-        tpl = [
-            '{0} = function {1}({2}) {{'.format(assign, node.name, args),
+        extend(tpl, [
+            '{0} = function {1}({2}) {{'.format(name, node.name, args),
             '  var $exception;',
             '  var $ctx = {next_state: 0, ctx: this, try_stack: []};',
             '  $ctx.local = {{{0}}};'.format(local),
             '  $ctx.func = function($ctx) {',
             '    while (true) try { switch($ctx.next_state) {',
             '      case 0:'
-        ]
+        ])
 
         node.branch = BranchPoint()
         for c in node.body:
@@ -244,14 +244,13 @@ class JSCompiler(ast.NodeVisitor):
                 if scope:
                     return self.visit_ClientScope(node, scope)
 
-        if node.context:
-            assign = '{0}.{1}'.format(node.context, node.name)
-        else:
-            assign = 'var {0}'.format(node.name)
+        name = self.visit(ast.Name(node.name, ast.Store))
+        if not node.context:
+            extend(tpl, 'var {0};'.format(name))
 
         # Constructor
         node.name = self.safe_name(node.name)
-        extend(tpl, '{0} = function {1}() {{'.format(assign, node.name))
+        extend(tpl, '{0} = function {1}() {{'.format(name, node.name))
 
         # Allow object creation without using `new`
         extend(tpl, indent([
@@ -283,30 +282,26 @@ class JSCompiler(ast.NodeVisitor):
 
         # Class body
         base = self.visit(node.bases[0])
-        if node.context:
-            cls = assign
-        else:
-            cls = node.name
 
         # Inherit
         extend(tpl, 'var $C = function() {};')
         if node.bases:
             extend(tpl, '$C.prototype = {0}.prototype;'.format(base))
-        extend(tpl, '{0}.prototype = new $C;'.format(cls))
+        extend(tpl, '{0}.prototype = new $C;'.format(name))
 
         # Set any class magic properties
         assign = '{0}.prototype.{1} = {0}.{1} = "{2}"'
-        extend(tpl, assign.format(cls, '__name__', node.name))
+        extend(tpl, assign.format(name, '__name__', node.name))
 
         # Methods
         for c in node.body:
             if isinstance(c, ast.FunctionDef):
                 extend(tpl, self.visit(c, '{0}.prototype.{1} = {0}'.format(
-                    cls, self.safe_name(c.name))))
+                    name, self.safe_name(c.name))))
 
         # Method binder
         extend(tpl, '{0}.prototype.{1} = {0}.{1} = function(self) {{'.format(
-            cls, '__bind__'))
+            name, '__bind__'))
         if node.bases:
             extend(tpl, indent(
                 'if ({0}.__bind__) {0}.__bind__(self);'.format(base)))
@@ -322,17 +317,17 @@ class JSCompiler(ast.NodeVisitor):
 
     def visit_ClientScope(self, node, scope):
         inject = ['$scope', '$element']
+        tpl = []
 
-        if node.context:
-            assign = '{0}.{1}'.format(node.context, scope['name'])
-        else:
-            assign = 'var {0}'.format(scope['name'])
+        name = self.visit(ast.Name(node.name, ast.Store))
+        if not node.context:
+            extend(tpl, 'var {0};'.format(name))
 
         args = ', '.join(inject)
         tpl = extend([], [
             '{0} = function {1}({2}) {{',
             '  var methods = {{}};'
-        ], assign, node.name, args)
+        ], name, node.name, args)
 
         for c in node.body:
             # Process non function nodes and non-event functions
@@ -388,15 +383,10 @@ class JSCompiler(ast.NodeVisitor):
             '}'
         ]))
 
-        if node.context:
-            scope = assign
-        else:
-            scope = scope['name']
-
         return extend(tpl, [
             '};',
             '{0}.$inject = {1};'
-        ], scope, json.dumps(inject))
+        ], name, json.dumps(inject))
 
     # Assign(expr* targets, expr value)
     def visit_Assign(self, node):
@@ -728,10 +718,12 @@ class JSCompiler(ast.NodeVisitor):
         lookup = self.lookup(node.id)
         if lookup:
             return lookup
+
+        name = self.safe_name(node.id)
         if node.context:
-            return '{0}.{1}'.format(node.context, node.id)
+            return '{0}.{1}'.format(node.context, name)
         else:
-            return node.id
+            return name
 
     # List(expr* elts, expr_context ctx)
     def visit_List(self, node):
@@ -761,10 +753,12 @@ class JSCompiler(ast.NodeVisitor):
             extend(tpl, 'if (!($exception)) {0};', goto(continue_point))
 
         if node.name:
-            if node.context:
-                extend(tpl, '{0}.{1} = $exception;', node.context, node.name)
-            else:
-                extend(tpl, 'var {0} = $exception;', node.name)
+            if isinstance(node.name, ast.AST):
+                node.name = self.visit(node.name)
+
+            if not node.context:
+                tpl.extend('var {0};'.format(node.name))
+            extend(tpl, '{0} = $exception;', node.name)
 
         for c in node.body:
             extend(tpl, self.visit(c))
