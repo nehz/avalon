@@ -146,14 +146,15 @@ class JSCompiler(ast.NodeVisitor):
 
         if value is None:
             return None
+        elif value is JSCode:
+            return name
         elif value is client.session:
             return 'avalon.session'
         elif value is model.model:
             return 'avalon.model'
         elif hasattr(value, '__server_method__'):
             method_name = value.__server_method__
-            if method_name:
-                return 'avalon.method("{0}")'.format(method_name)
+            return 'avalon.method("{0}")'.format(method_name)
         return self.safe_name(name)
 
     def safe_name(self, name):
@@ -718,12 +719,8 @@ class JSCompiler(ast.NodeVisitor):
         lookup = self.lookup(node.id)
         if lookup:
             return lookup
-
         name = self.safe_name(node.id)
-        if node.context:
-            return '{0}.{1}'.format(node.context, name)
-        else:
-            return name
+        return '{0}.{1}'.format(node.context, name) if node.context else name
 
     # List(expr* elts, expr_context ctx)
     def visit_List(self, node):
