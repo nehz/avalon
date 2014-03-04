@@ -97,7 +97,8 @@ class Store(object):
         except Exception as e:
             _log.exception(e)
         finally:
-            del self.subscriptions[query_key]
+            if query_key in self.subscriptions:
+                del self.subscriptions[query_key]
 
     def subscribe(self, request, collection, query_key):
         # TODO: Inject security policies/adapters/transforms here
