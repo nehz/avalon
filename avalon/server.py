@@ -17,6 +17,7 @@ from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
 from sockjs.tornado import SockJSConnection as Channel
+from tornado import gen
 from tornado.escape import xhtml_unescape as unescape
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
@@ -80,9 +81,10 @@ def channel(route):
                 ip = request.ip
                 _log.info('OPEN Channel {0} ({1})'.format(route, ip))
 
+            @gen.coroutine
             def on_message(self, message):
                 try:
-                    Greenlet(f).switch(self, message)
+                    yield Greenlet(gen.coroutine(f)).switch(self, message)
                 except Exception as e:
                     _log.exception(e)
 
