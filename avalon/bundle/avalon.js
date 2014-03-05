@@ -98,7 +98,7 @@
    */
   avalon.method = function method(methodName) {
     return function shim() {
-      avalon.call(methodName, Array.prototype.slice.call(arguments));
+      return avalon.call(methodName, Array.prototype.slice.call(arguments));
     };
   };
 
