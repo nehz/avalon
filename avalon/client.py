@@ -5,7 +5,7 @@
 #==============================================================================
 
 from .compiler import JSCode
-from .utils import attrfunc
+from .utils import AttrFuncDecorator
 
 _functions = []
 _scopes = {}
@@ -57,7 +57,7 @@ def expose(obj):
     return obj
 
 
-@attrfunc
+@AttrFuncDecorator
 def event(name, selector=''):
     def d(f):
         f.event = (name, selector)
