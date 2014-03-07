@@ -7,17 +7,13 @@
 import os
 
 from argparse import ArgumentParser
+from six.moves.configparser import ConfigParser, NoSectionError
 from . import server
 
 CONFIG_FILE = 'avalon.conf'
 
 
 def serve(args):
-    try:
-        from ConfigParser import ConfigParser
-    except:
-        from configparser import ConfigParser
-
     config = ConfigParser({'port': '8080', 'db': None})
     config.read([CONFIG_FILE])
 
