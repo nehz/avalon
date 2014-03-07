@@ -16,7 +16,7 @@ from six import StringIO
 from lxml import html
 from lxml.html import builder as E
 from sockjs.tornado import router as _router, SockJSRouter
-from sockjs.tornado import SockJSConnection as Channel
+from sockjs.tornado import SockJSConnection
 from tornado import gen
 from tornado.escape import xhtml_unescape as unescape
 from tornado.httpserver import HTTPServer
@@ -73,26 +73,34 @@ mimetypes.add_type('application/x-font-ttf', '.ttf', True)
 mimetypes.add_type('application/x-font-woff', '.woff', True)
 
 
+class ChannelConnection(SockJSConnection):
+    route = None
+    func = None
+
+    def __init__(self, *args, **kwargs):
+        super(ChannelConnection, self).__init__(*args, **kwargs)
+        self.info = None
+
+    def on_open(self, info):
+        self.info = info
+        _log.info('OPEN Channel {0} ({1})'.format(self.route, info.ip))
+
+    @gen.coroutine
+    def on_message(self, message):
+        try:
+            yield Greenlet(gen.coroutine(self.func)).switch(message)
+        except Exception as e:
+            _log.exception(e)
+
+    def on_close(self):
+        _log.info('CLOSE Channel {0} ({1})'.format(self.route, self.info.ip))
+
+
 def channel(route):
     def _d(f):
-        class _Channel(Channel):
-            def on_open(self, request):
-                self.request = request
-                ip = request.ip
-                _log.info('OPEN Channel {0} ({1})'.format(route, ip))
-
-            @gen.coroutine
-            def on_message(self, message):
-                try:
-                    yield Greenlet(gen.coroutine(f)).switch(self, message)
-                except Exception as e:
-                    _log.exception(e)
-
-            def on_close(self):
-                ip = self.request.ip
-                _log.info('CLOSE Channel {0} ({1})'.format(route, ip))
-
-        _routes.extend(SockJSRouter(_Channel, route).urls)
+        attrs = {'route': route, 'func': f}
+        connection = type('ChannelConnection', (ChannelConnection, ), attrs)
+        _routes.extend(SockJSRouter(connection, route).urls)
         return f
     return _d
 
